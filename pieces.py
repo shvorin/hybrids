@@ -20,6 +20,9 @@ def fraise(exc, msg=""):
         def f(x): raise exc, msg
     return f
 
+def fconst(v):
+    return lambda x: v
+
 def fiter(*fs):
     """
     takes a list of function; result is a function which returns an iterator
@@ -41,6 +44,17 @@ def finsert(F, *fs):
     def g(x):
         res = fiter(*fs)(x)
         res.extend(F(x))
+        return res
+    return g
+
+def fappend(F, *fs):
+    """
+    Nearly the same as finsert(), but appends results of fs to the result of F.
+    All of fs are applied _after_ F    
+    """
+    def g(x):
+        res = F(x)
+        res.extend(fiter(*fs)(x))
         return res
     return g
 
@@ -82,10 +96,25 @@ class Piece(Immutable):
         raise AbstractMethodError
 
     def leave(self, other):
-        raise AbstractMethodError
+        """
+        generic leave() method suitable for most pieces
+        """
+        if self == other:
+            return (self, None)
+        else:
+            if other == None: msg = "empty"
+            elif other.col != self.col: msg = "enemy piece"
+            else: msg = ("not a %s" % self.__class__.__name__)
+            raise IllegalMove, msg
 
     def join(self, other):
-        raise AbstractMethodError
+        """
+        generic join() method suitable for most pieces
+        """
+        if other == None or other.col != self.col:
+            return (other, self)
+        else:
+            raise IllegalMove, ("%s is not hybridable" % self.__class__.__name__)
 
     def fjoin(self, src):
         return lambda board: (src, self.join(board[src]))
@@ -100,22 +129,22 @@ class Piece(Immutable):
     def freach(self, src, dst):
         return lambda board: self.reach(board, src, dst)
 
-    def move_noleave(self, src, dst, options={}):
+    def access(self, src, dst, options={}):
         """
-        'leave' hunk is not included
-        generic move_noleave() method is suitable for most pieces
+        'leave' and 'join' hunks are not included
+        generic access() method is suitable for most pieces
         """
         return fiter(lambda b: myassert(self.isReachable(src, dst),
-                                        IllegalMove, ("invalid %s move" % self.__class__.__name__)),
-                     self.fjoin(dst))
+                                        IllegalMove, ("invalid %s move" % self.__class__.__name__)))
 
     def move(self, src, dst, options={}):
         """
-        'leave' hunk included
+        'leave' and 'join' hunk included
         """
-        return finsert(self.move_noleave(src, dst, options),
-                       self.fturn(),
-                       self.fleave(src))
+        return fappend(finsert(self.access(src, dst, options),
+                               self.fturn(),
+                               self.fleave(src)),
+                       self.fjoin(dst))
 
     def show(self):
         """
@@ -168,21 +197,6 @@ class AtomicPiece(Piece):
 
     def ishybrid(self): return False
 
-    def leave(self, other):
-        if self == other:
-            return (self, None)
-        else:
-            if other == None: msg = "empty"
-            elif other.col != self.col: msg = "enemy piece"
-            else: msg = ("not a %s" % self.__class__.__name__)
-            raise IllegalMove, msg
-
-    def join(self, other):
-        if other == None or other.col != self.col:
-            return (other, self)
-        else:
-            raise IllegalMove, ("%s is not hybridable" % self.__class__.__name__)
-
 class KingPiece(AtomicPiece):
     symbol = 'K'
 
@@ -196,7 +210,7 @@ class KingPiece(AtomicPiece):
 class PawnPiece(AtomicPiece):
     symbol = 'P'
 
-    def move_noleave(self, src, dst, options={}):
+    def move(self, src, dst, options={}):
         x, y = (dst-src)()
         # assert 1 <= src.y <= 6
         
@@ -271,12 +285,11 @@ class RangedPiece:
     """
     common class for ranged pieces: Rook and Bishop
     """
-    def move_noleave(self, src, dst, options={}):
+    def access(self, src, dst, options={}):
         """
-        move_noleave for all ranged pieces
+        access for all ranged pieces
         """
-        return fiter(self.freach(src, dst),
-                     self.fjoin(dst))
+        return fiter(self.freach(src, dst))
 
 class PrimePiece(Piece):
     symbols = tuple('RBNQ')
@@ -303,7 +316,10 @@ class PrimePiece(Piece):
         else:
             if not isinstance(other, HybridPiece):
                 raise IllegalMove, "this is not a hybrid"
-            rest = other-self
+            try:
+                rest = other-self
+            except ValueError, e:
+                raise IllegalMove, e
 
         return (other, rest)
 
@@ -386,21 +402,26 @@ class QueenPiece(PrimePiece):
 class HybridPiece(Piece):
     __slots__ = ('sym', 'col', 'p1', 'p2')
     
+    def hybridable(self): return False
+
+    def ishybrid(self): return True
+
     def move(self, src, dst, options={}):
         def g(board):
             try:
-                patch = p1.move_noleave(src, dst, options)
+                patch = self.p1.access(src, dst, options)(board)
             except IllegalMove, e1:
-                if p2 != p1:
+                if self.p2 != self.p1:
                     try:
-                        patch = p2.move_noleave(src, dst, options)
+                        patch = self.p2.access(src, dst, options)(board)
                     except IllegalMove, e2:
                         raise IllegalMove, ("illegal hybrid move: '%s' / '%s'" % (e1, e2))
                 else:
                     raise IllegalMove, ("illegal hybrid move: '%s'" % e1)
             return patch
 
-        return finsert(g, self.fturn(), self.fleave(src))
+        return fappend(finsert(g, self.fturn(), self.fleave(src)),
+                       self.fjoin(dst))
         
 
     def __init__(self, p1, p2):

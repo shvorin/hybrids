@@ -204,8 +204,6 @@ with history.
                         self.undo()
                     except IllegalMove:
                         pass
-                    except Exception, e:
-                        print ("(%s)" % piece, src, dst)
                     
     def check_last_move(self):
         return True # not implemented
