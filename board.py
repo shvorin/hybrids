@@ -26,14 +26,25 @@ class Board:
     variants = ('ortodox', 'hybrids')
 
     def __init__(self, variant='hybrids'):
+        """
+        NB: all instance values should be defined here
+        """
         self.gameover = None
+
+        # turn to move: white either black
         self.turn = None
+
+        # semi-move counter
         self.semimoveCount = 0
+
+        # An inner table maps locations to the corresponding pieces (or None if the field is empty).
+        # Don't access it directly, use __getitem__, __setitem__ methods instead.
         self.locs = {}
         for x in range(8):
             for y in range(8):
                 self[(x,y)] = None
     
+        # history is a stack of patches
         self.history = []
         self.historyEnd = 0
 
