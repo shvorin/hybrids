@@ -134,6 +134,18 @@ class Piece(Immutable):
         sp = self.col.show()
         return (sp*3, sp+self.sym[0]+sp)
 
+    def iterMove(self, board, src):
+        """
+        Returns an iterator which iterates all possible moves of this piece.
+        Doesn't care whether any king is under attack.  This is a generic version for all pieces.
+        """
+        for dst in Loc.iter('*'):
+            try:
+                # a pawn may require 'options' argument, so this code is incorrect
+                patch = self.move(src, dst)(board)
+            except IllegalMove:
+                yield patch
+        
     def iter(*args):
         l = len(args)
         if l == 1:
@@ -200,6 +212,14 @@ class PawnPiece(AtomicPiece):
     symbol = 'P'
     ordinal = 1000 # the highest
 
+    secondRank  = {white: 1, black: 6}
+    seventhRank = {white: 6, black: 1}
+    eighthRank  = {white: 7, black: 0}
+
+    simpleMove = {white: AffLoc(0, 1), black: AffLoc(0, -1)}
+    doubleMove = {white: AffLoc(0, 2), black: AffLoc(0, -2)}
+    captureMoves = {white: (AffLoc(-1, 1), AffLoc(1, 1)), black: (AffLoc(1, -1), AffLoc(-1, -1))}
+
     def move(self, src, dst, options={}):
         x, y = (dst-src)()
         # assert 1 <= src.y <= 6
@@ -218,18 +238,19 @@ class PawnPiece(AtomicPiece):
         
         if x == 0:
             # non-capture move
+            fhunks.append(lambda board: myassert(board[dst] == None,
+                                                 IllegalMove, "this pawn is blocked"))
             if y == 2:
                 # double move
                 if not untouched:
                     return fraise(IllegalMove, "cannot make double move")
                 nextfld = src+fwd
                 fhunks.append(lambda board: myassert(board[nextfld] == None,
-                                                     IllegalMove, "this pawn is blocked (case double)"))
+                                                     IllegalMove, "this pawn is blocked"))
                 fhunks.append(lambda board: board.enpassantHunk(nextfld))
             elif y == 1:
                 # simple move
-                fhunks.append(lambda board: myassert(board[dst] == None,
-                                                     IllegalMove, "this pawn is blocked (case simple)"))
+                pass # nothigh to do
             else:
                 return fraise(IllegalMove, "invalid pawn move (case 1)")
                 
@@ -288,6 +309,27 @@ class PawnPiece(AtomicPiece):
         """
         x, y = (dst-src)()
         return abs(x) == 1 and ((self.col, y) in ((white, 1), (black, -1)))
+
+# FIXME: not implemented
+#     def iterMove(self, board, src):
+#         """
+#         returns an iterator of all possible pawn moves
+#         """
+#         for shift in Pawn.captureMoves(self.col):
+#             try:
+#                 dst = src+shift
+#                 yield self.move(src, ...
+#                                 )(board)
+        
+#         try:
+#             if src.y == Pawn.second(self.col):
+#                 yield self.move(src, ...
+#                                 )(board)
+#             elif src.y == Pawn.seventh(self.col):
+#                 for cls in RookPiece, BishopPiece, KnightPiece, QueenPiece:
+#                     yield self.move(src, dst, {'promote': cls(self.col)})(board)
+#         except IllegalMove:
+#             pass
 
 class RangedPiece(object):
     """
