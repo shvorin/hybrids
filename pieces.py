@@ -8,12 +8,13 @@ __id__ = "$Id$"
 
 from atoms import *
 
+class IllegalMove(Exception):
+    pass
+
 AbstractMethodError = Exception, "an abstract method called"
 
 class Piece(Immutable):
     __slots__ = ('sym', 'col')
-
-    pieces = {}
 
     def __init__(self, arg1, arg2=None):
         """
@@ -41,18 +42,7 @@ class Piece(Immutable):
     def __repr__(self):
         return self.col.showShort() + self.sym
 
-    def newPiece(sym, col):
-        if pieces.has_key(sym):
-            return pieces[sym](col)
-        else:
-            raise ValueError, "unknown symbol"
-        
-    newPiece = staticmethod(newPiece)
-    
     def isReachable(self, src, dst):
-        raise AbstractMethodError
-
-    def move(self, src, dst):
         raise AbstractMethodError
 
     def leave(self, src, dst):
@@ -60,10 +50,34 @@ class Piece(Immutable):
 
     def join(self, src, dst):
         raise AbstractMethodError
-        
+
+    def move(self, src, dst, options={}):
+        """
+        generic move() method is suitable for most pieces
+        """
+        def f(brd):
+            #            assert isinstance(brd, board.Board)
+            if brd.turn != self.col:
+                raise IllegalMove, ("it's not %s's turn to move" % self.col)
+            hunk1 = (src, self.leave(brd[src]))
+
+            if not self.isReachable(src, dst):
+                raise IllegalMove, ("invalid %s move" % self.__class__.name)
+
+            hunk2 = (dst, self.join(brd[dst]))
+
+            return [hunk1, hunk2]
+        return f
+
+    def show(self):
+        """
+        a rectangle 2x3 should be filled by theese chars
+        """
+        sp = self.col.show()
+        return (sp*3, sp+self.sym[0]+sp)
+    
 class AtomicPiece(Piece):
     symbols = tuple('KP')
-    pieces = {}
 
     # subclasses should define class field 'symbol'
 
@@ -86,48 +100,79 @@ class AtomicPiece(Piece):
         else:
             raise IllegalMove, ("%s is not hybridable" % self.__class__.__name__)
 
-# FIXME: have to add __metaclass__ attribute to *all* subclasses of AtomicPiece
-def metaclass(name, bases, dict):
-    newclass = type(name, bases, dict)
-    AtomicPiece.pieces[newclass.symbol] = newclass
-    Piece.pieces[newclass.symbol] = newclass
-    return newclass
-
 class KingPiece(AtomicPiece):
     symbol = 'K'
 
-    __metaclass__ = metaclass
-    
     def isReachable(self, src, dst):
         x, y = (dst-src)()
         if abs(x) == 0: return abs(y) == 1
         else:           return abs(y) <= 1
 
-    def move(self, src, dst):
-        def f(board):
-            assert isinstance(board, Board)
-            hunk1 = self.leave(board[src])
-
-            if not self.isReachable(src, dst):
-                raise IllegalMove, "invalid king move"
-
-            hunk2 = self.join(board[dst])
-
-            return [hunk1, hunk2]
-        return f
-
 
 class PawnPiece(AtomicPiece):
     symbol = 'P'
 
-    __metaclass__ = metaclass
+    def move(self, src, dst, options={}):
+        x, y = (dst-src)()
+        assert src.y != 0 and src.y != 7
+        
+        if self.col == black:
+            y = -y
+            is_moved = src.y - 6
+            do_promote = dst.y
+        else:
+            is_moved = src.x - 1
+            do_promote = 7 - dst.y
 
-    def isReachable(self, src, dst):
-        NotImplemented
+        def check_src(board):
+            if board[src] != self: raise IllegalMove, "this is not a pawn"
+
+        checks = [check_src]
+        
+        if x == 0:
+            if y == 2:
+                def check_double(board):
+                    if not is_moved:
+                        raise IllegalMove, "cannot make double move"
+                    if board[src+AffLoc(0, 1)] != None:
+                        raise IllegalMove, "this pawn is blocked"
+                checks.append[check_double]
+            elif y != 1:
+                return fraise(IllegalMove, "invalid pawn move")
+            def check_simple(board):
+                if board[dst] != None:
+                    raise IllegalMove, "this pawn is blocked"
+            checks.append[check_simple]
+        elif abs(x) == 1 and y == 1:
+            # capture move
+            pass
+        else:
+            return fraise(IllegalMove, "invalid pawn move")
+
+class RangedPiece:
+    """
+    common class for ranged pieces: Rook and Bishop
+    """
+    def move(self, src, dst, options={}):
+        """
+        generic move() method is suitable for most pieces
+        """
+        def f(board):
+            # assert isinstance(board, Board)
+            if board.turn != self.col:
+                raise IllegalMove, ("it's not %s's turn to move" % self.col)
+            hunk1 = (src, self.leave(board[src]))
+
+            # only check for IllegalMove exception
+            self.reach(board, src, dst)
+
+            hunk2 = (dst, self.join(board[dst]))
+
+            return [hunk1, hunk2]
+        return f
 
 class PrimePiece(Piece):
     symbols = tuple('RBNQ')
-    pieces = {}
 
     # subclasses should define class field 'symbol'
 
@@ -169,11 +214,33 @@ class PrimePiece(Piece):
             return other, self
 
 
-class RookPiece(PrimePiece):
+class RookPiece(RangedPiece, PrimePiece):
     symbol = 'R'
 
-class BishopPiece(PrimePiece):
+    def reach(self, board, src, dst):
+        "returns nothing or raises IllegalMove"
+        x, y = (dst-src)()
+        if x == 0:
+            if y == 0: raise IllegalMove, "cannot skip move"
+            sign = cmp(y, 0)
+            for i in range(sign, y, sign):
+                if board[src+AffLoc(0, i)] != None:
+                    raise IllegalMove, "rook can't jump over pieces"
+        elif y == 0:
+            sign = cmp(x, 0)
+            for i in range(sign, x, sign):
+                if board[aff_add(src, (i, 0))] != None:
+                    IllegalMove, "rook can't jump over pieces"
+        else:
+            raise IllegalMove, "impossible rook move"
+
+class BishopPiece(RangedPiece, PrimePiece):
     symbol = 'B'
+
+    def reach(self, board, src, dst):
+        "returns nothing or raises IllegalMove"
+        x, y = (dst-src)()
+        raise 'not implemented'
 
 class KnightPiece(PrimePiece):
     symbol = 'N'
@@ -220,3 +287,7 @@ class HybridPiece(Piece):
         else:
             raise ValueError, ("this hybrid does not contain prime piece %s" % other)
         
+    def show(self):
+        sp = self.col.show()
+        return (sp+self.p2.sym[0]+sp, sp+self.p1.sym[0]+sp)
+    

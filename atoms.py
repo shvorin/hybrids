@@ -68,6 +68,10 @@ class Color(Immutable):
         if self == white: return black
         else: return white
 
+    def show(self):
+        if self == white: return ' '
+        else: return '.'
+
 white, black = Color.createValues()
 del Color.createValues # no more Color values ;)
 # FIXME: it is still allowed to modify __slots__ fields by calling init_instance
@@ -83,9 +87,14 @@ class Loc(Immutable):
     def __init__(self, *args):
         length = len(args)
         if length == 2:
-            (x, y) = args
+            x, y = args
         elif length == 1:
-            ((x, y), ) = args
+            (a, ) = args
+            if isinstance(a, self.__class__):
+                # copy constructor
+                x, y = a.x, a.y
+            else:
+                x, y = a
         else:
             raise ValueError, "wrong # of args"
 
