@@ -6,6 +6,9 @@ from Tkinter import *
 from board import *
 from pieces import *
 
+def sub2((x1, y1), (x2, y2)):
+    return x1-x2, y1-y2
+
 class GBoard:
     photoimages = {}
 
@@ -40,8 +43,10 @@ class GBoard:
             for y in range(8):
                 self.boardDrawn[Loc(x,y)] = ()
 
-        # may be a pair (loc, piece, items_tupple) or None;
-        # items_tupple is a tupple (1 or 2 values) of (item, coords) pair
+        # may be a tupple (loc, piece, items_tupple) or None;
+        # items_tupple is a tupple (1 or 2 values) of (item, shift),
+        # where shift is difference between items original coordinates and
+        # cursor position at the moment of selecting
         self.selected = None
         
         self.root = Tk()
@@ -105,6 +110,7 @@ class GBoard:
         self.drawPosition()
 
     def mouseDown(self, event):
+        event_coords = event.x, event.y
         xcell, ycell = event.x / self.xsize - 1, 7 - (event.y / self.ysize - 1)
         loc = self.getLoc(event.x, event.y)
         if loc:
@@ -114,6 +120,7 @@ class GBoard:
                 print 'mouseDown: empty'
                 self.selected = None
             elif piece.ishybrid():
+                img1, img2 = self.boardDrawn[loc]
                 # check event.y more precisely
                 threshold = (event.y - (7-ycell+1)*self.ysize)
                 assert 0 <= threshold <= self.ysize
@@ -121,19 +128,24 @@ class GBoard:
                 if threshold < self.ysize:
                     # upper chosen
                     print 'mouseDown: upper'
-                    self.selected = (loc, piece.p1, (self.boardDrawn[loc][1], ))
+                    self.selected = (loc, piece.p2,
+                                     ((img2, sub2(self.upperField(loc), event_coords)), ))
                 elif threshold > 2*self.ysize:
                     # lower chosen
                     print 'mouseDown: lower'
-                    self.selected = (loc, piece.p2, (self.boardDrawn[loc][0], ))
+                    self.selected = (loc, piece.p1,
+                                     ((img1, sub2(self.lowerField(loc), event_coords)), ))
                 else:
                     # both chosen
                     print 'mouseDown: both'
-                    self.selected = (loc, piece, self.boardDrawn[loc])
+                    self.selected = (loc, piece,
+                                     ((img1, sub2(self.lowerField(loc), event_coords)),
+                                      (img2, sub2(self.upperField(loc), event_coords))))
             else:
                 # not hybrid
                 print 'mouseDown: not hybrid'
-                self.selected = (loc, piece, self.boardDrawn[loc])
+                (img, ) = self.boardDrawn[loc]
+                self.selected = (loc, piece, ((img, sub2(self.centerField(loc), event_coords)), ))
         else:
             print 'mouseDown: out of range'
             self.selected = None
@@ -141,18 +153,15 @@ class GBoard:
     def mouseMove(self, event):
         print self.selected
         if self.selected:
-            (loc, piece, item_coords) = self.selected
-            #             x, y = self.centerField(loc)
-            #             dx, dy = event.x-x, event.y-y
-            # FIXME: make more precise item moving
-            for item, coords in item_coords:
-                self.c.coords(item, event.x, event.y)
+            loc, piece, item_shifts = self.selected
+            for item, (x, y) in item_shifts:
+                self.c.coords(item, x+event.x, y+event.y)
                 self.c.tkraise(item)
 
     def mouseUp(self, event):
         print self.selected
         if self.selected:
-            loc, piece, item_coords = self.selected
+            loc, piece, item_shifts = self.selected
             newloc = self.getLoc(event.x, event.y)
             if newloc:
                 try:
@@ -166,11 +175,6 @@ class GBoard:
 
         # FIXME: may be too expensive
         self.drawPosition()
-
-    def restore_items(self, item_coords):
-        print 'restore_items'
-        for item, coords in item_coords:
-            self.c.coords(item, *coords)
 
     def keyRelease(self, event):
         pass
@@ -216,7 +220,7 @@ class GBoard:
             return None
 
     def drawPiece(self, piece, loc):
-        for item, coords in self.boardDrawn[loc]:
+        for item in self.boardDrawn[loc]:
             self.c.delete(item)
 
         self.boardDrawn[loc] = ()
@@ -225,13 +229,13 @@ class GBoard:
             return
         
         if piece.ishybrid():
-            for p, fld_func in (piece.p2, self.lowerField), (piece.p1, self.upperField):
+            for p, fld_func in (piece.p1, self.lowerField), (piece.p2, self.upperField):
                 coords = fld_func(loc)
                 item = self.c.create_image(*coords)
                 self.c.itemconfigure(item, image=GBoard.photoimages[p])
-                self.boardDrawn[loc] += ((item, coords), )
+                self.boardDrawn[loc] += (item, )
         else:
             coords = self.centerField(loc)
             item = self.c.create_image(*coords)
             self.c.itemconfigure(item, image=GBoard.photoimages[piece])
-            self.boardDrawn[loc] += ((item, coords), )
+            self.boardDrawn[loc] += (item, )
