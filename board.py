@@ -148,7 +148,7 @@ class Board:
     def applyHunk(self, loc, (old, new)):
         # perform a sanity check
         if(old != self[loc]):
-            raise "hunk failed"
+            raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
         self[loc] = new
         
 
@@ -226,4 +226,4 @@ with history.
 # test suite
 b = Board()
 # print available moves
-for x in b.iterMove(('*', ), ('*', ) , '*'): print x
+# for x in b.iterMove(('*', ), ('*', ) , '*'): print x

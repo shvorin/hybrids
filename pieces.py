@@ -20,7 +20,7 @@ def fraise(exc, msg=""):
         def f(x): raise exc, msg
     return f
 
-def fiter(fs):
+def fiter(*fs):
     """
     takes a list of function; result is a function which returns an iterator
     """
@@ -30,6 +30,19 @@ def fiter(fs):
             # ignore void results
             if r != None: yield r
     return lambda x: [y for y in g(x)]
+
+def finsert(F, *fs):
+    """
+    argumets:
+    let F returns a list, each of fs returns some value,
+    then result is some conjuction of the value and the list.
+    All of fs are applied _before_ F
+    """
+    def g(x):
+        res = fiter(*fs)(x)
+        res.extend(F(x))
+        return res
+    return g
 
 def myassert(v, exc, msg=""):
     if not v:
@@ -87,15 +100,22 @@ class Piece(Immutable):
     def freach(self, src, dst):
         return lambda board: self.reach(board, src, dst)
 
+    def move_noleave(self, src, dst, options={}):
+        """
+        'leave' hunk is not included
+        generic move_noleave() method is suitable for most pieces
+        """
+        return fiter(lambda b: myassert(self.isReachable(src, dst),
+                                        IllegalMove, ("invalid %s move" % self.__class__.__name__)),
+                     self.fjoin(dst))
+
     def move(self, src, dst, options={}):
         """
-        generic move() method is suitable for most pieces
+        'leave' hunk included
         """
-        return fiter([self.fturn(),
-                      self.fleave(src),
-                      lambda b: myassert(self.isReachable(src, dst),
-                                         IllegalMove, ("invalid %s move" % self.__class__.__name__)),
-                      self.fjoin(dst)])
+        return finsert(self.move_noleave(src, dst, options),
+                       self.fturn(),
+                       self.fleave(src))
 
     def show(self):
         """
@@ -176,7 +196,7 @@ class KingPiece(AtomicPiece):
 class PawnPiece(AtomicPiece):
     symbol = 'P'
 
-    def move(self, src, dst, options={}):
+    def move_noleave(self, src, dst, options={}):
         x, y = (dst-src)()
         # assert 1 <= src.y <= 6
         
@@ -190,7 +210,7 @@ class PawnPiece(AtomicPiece):
             do_promote = 7 == dst.y
             fwd = AffLoc(0, 1)
 
-        fhunks = [self.fturn(), self.fleave(src)]
+        fhunks = [self.fturn()]
         
         if x == 0:
             # non-capture move
@@ -231,7 +251,7 @@ class PawnPiece(AtomicPiece):
             assert not options.has_key('promote')
             fhunks.append(self.fput(dst, self))
 
-        return fiter(fhunks)
+        return fiter(*fhunks)
 
     def fput(self, dst, newPiece):
         # similar to fjoin(), but does not care about what dst is occupied by
@@ -251,14 +271,12 @@ class RangedPiece:
     """
     common class for ranged pieces: Rook and Bishop
     """
-    def move(self, src, dst, options={}):
+    def move_noleave(self, src, dst, options={}):
         """
-        generic move() method is suitable for most pieces
+        move_noleave for all ranged pieces
         """
-        return fiter([self.fturn(),
-                      self.fleave(src),
-                      self.freach(src, dst),
-                      self.fjoin(dst)])
+        return fiter(self.freach(src, dst),
+                     self.fjoin(dst))
 
 class PrimePiece(Piece):
     symbols = tuple('RBNQ')
@@ -331,7 +349,19 @@ class BishopPiece(RangedPiece, PrimePiece):
     def reach(self, board, src, dst):
         "returns nothing or raises IllegalMove"
         x, y = (dst-src)()
-        raise IllegalMove, 'not implemented'
+        
+        if x == 0:
+            raise IllegalMove, "cannot skip move"
+        dist = abs(x)
+        if dist != abs(y):
+            raise IllegalMove, "impossible bishop move"
+
+        step = AffLoc(cmp(x, 0), cmp(y, 0))
+
+        for i in range(1, dist):
+            if board[src+step*i] != None:
+                raise IllegalMove, "Bishop can't jump over pieces"
+
 
 class KnightPiece(PrimePiece):
     symbol = 'N'
@@ -356,12 +386,22 @@ class QueenPiece(PrimePiece):
 class HybridPiece(Piece):
     __slots__ = ('sym', 'col', 'p1', 'p2')
     
-    #symbols = ('RR', 'RB') ...
-    def isReachable(self, src, dst):
-        NotImplemented
+    def move(self, src, dst, options={}):
+        def g(board):
+            try:
+                patch = p1.move_noleave(src, dst, options)
+            except IllegalMove, e1:
+                if p2 != p1:
+                    try:
+                        patch = p2.move_noleave(src, dst, options)
+                    except IllegalMove, e2:
+                        raise IllegalMove, ("illegal hybrid move: '%s' / '%s'" % (e1, e2))
+                else:
+                    raise IllegalMove, ("illegal hybrid move: '%s'" % e1)
+            return patch
 
-    def move(*args):
-        raise IllegalMove, "not implemented"
+        return finsert(g, self.fturn(), self.fleave(src))
+        
 
     def __init__(self, p1, p2):
         assert isinstance(p1, PrimePiece)

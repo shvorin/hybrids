@@ -195,3 +195,6 @@ class AffLoc(Immutable):
     def __sub__(self, other):
         assert AffLoc == other.__class__
         return AffLoc(self.x-other.x, self.y-other.y)
+
+    def __mul__(self, other):
+        return AffLoc(self.x*other, self.y*other)
