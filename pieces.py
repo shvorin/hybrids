@@ -117,6 +117,16 @@ class Piece(Immutable):
                      self.reach(src, dst),
                      self.fjoin(dst))
 
+    def attacks(self, board, src, dst):
+        """
+        returns True iff the piece from 'src' attacks 'dst' no matter what is on 'dst'
+        """
+        try:
+            self.reach(src, dst)(board)
+            return True
+        except IllegalMove:
+            return False
+
     def show(self):
         """
         a rectangle 2x3 should be filled by theese chars
@@ -260,6 +270,13 @@ class PawnPiece(AtomicPiece):
             # FIXME: check en-passant
             raise IllegalMove, "invalid pawn's capture move"
         return f
+
+    def attacks(self, board, src, dst):
+        """
+        the pawn really attacks 'dst', i.e. pawn on e2 does not attack neither e3 nor e4
+        """
+        x, y = (dst-src)()
+        return abs(x) == 1 and ((self.col, y) in ((white, 1), (black, -1)))
 
 class RangedPiece(object):
     """

@@ -26,6 +26,7 @@ class Board:
     variants = ('ortodox', 'hybrids')
 
     def __init__(self, variant='hybrids'):
+        self.gameover = None
         self.turn = None
         self.semimoveCount = 0
         self.locs = {}
@@ -169,7 +170,13 @@ with history.
     
     def makeMove(self, patch):
         """tries to apply the patch and alters the history"""
+        if self.gameover:
+            raise IllegalMove, ("game already finished (result is %s)" % self.gameover)
         self.applyPatch(patch)
+        # check if we our king is under attack
+        if self.kingAttacked(self.turn):
+            self.applyPatch(patch, 'rev')
+            raise IllegalMove, ("%s king is left under attack" % self.turn)
         # clear history from the future
         self.history[self.semimoveCount:] = []
         self.semimoveCount += 1
@@ -179,7 +186,7 @@ with history.
     def undo(self):
         if self.semimoveCount == 0:
             raise "undo: it the first position"
-        self.applyPatch(self.history[self.semimoveCount-1], rev=True)
+        self.applyPatch(self.history[self.semimoveCount-1], 'rev')
         self.semimoveCount = self.semimoveCount-1
         self.turn = self.turn.inv()
 
@@ -197,16 +204,51 @@ with history.
                     try:
                         patch = piece.move(src, dst, options)(self)
                         self.makeMove(patch)
-                        # check for checks
-                        if self.check_last_move():
-                            yield patch
-                        # FIXME: check for mate/stalemate
                         self.undo()
+                        yield patch
                     except IllegalMove:
                         pass
                     
-    def check_last_move(self):
-        return True # not implemented
+    def kingAttacked(self, myCol):
+        """
+        Checks whether our king is under attack (after last move).
+        Optional 'patch' is just for efficiency
+        """
+        
+        # FIXME: enhance the position representation to make this search more convenient
+        # TODO: use patch
+        myKing = KingPiece(myCol)
+        for dst in Loc.iter('*'):
+            if self[dst] == myKing: break
+        # assert self[dst] == myKing # assertion fails if no myKing found on the board
+        # FIXME
+        if self[dst] != myKing: return False
+
+        for src in Loc.iter('*'):
+            piece = self[src]
+            if piece and piece.col != myCol:
+                if piece.attacks(self, src, dst):
+                    return True
+        return False
+
+    def detectMate(self):
+        """
+        says whether current position is check/mate/stalemate
+        """
+        for x in self.iterMove(('*', ), ('*', ), ('*', )):
+            move_possible = True
+            break
+        else:
+            move_possible = False
+
+        check = self.kingAttacked(self.turn)
+
+        if check:
+            if move_possible: return 'check'
+            else: return 'mate'
+        else:
+            if move_possible: return None
+            else: return 'stalemate'
 
     # FIXME: name: it returns a patch (appliable for makeMove())
     def move(self, piece, src, dst, options={}):
@@ -219,6 +261,24 @@ with history.
         # IllegalMove may be raised
         patch = piece.move(src, dst, options)(self)
         self.makeMove(patch)
+
+        # check for check/mate/stalemate after the move
+        result = self.detectMate()
+        if result == 'check':
+            print 'check'
+        elif result == 'stalemate':
+            print 'stalemate:\nResult: 1/2:1/2'
+            self.gameover = 'draw'
+        elif result == 'mate':
+            winner = self.turn.inv()
+            if winner == white:
+                score = '1:0'
+            else:
+                score = '0:1'
+            print ('%s mate:\nResult: %s' % (winner, score))
+            self.gameover = score
+        else:
+            assert result == None
 
         
 # test suite
