@@ -70,7 +70,8 @@ class Board:
     def getLoc(self, pos):
         return self.locs[pos]
     
-    def dump(self):
+    def __str__(self):
+        "shows current position in human-readable format"
         s = ''
         s = s + ' | a | b | c | d | e | f | g | h | \n'
         s = s + '-+---+---+---+---+---+---+---+---+-\n'
@@ -94,7 +95,7 @@ class Board:
         return s
     
     def setup(self):
-        """setups initial position; dump() will show the following:
+        """setups initial position; __str__() will show the following:
 
  | a | b | c | d | e | f | g | h | 
 -+---+---+---+---+---+---+---+---+-
