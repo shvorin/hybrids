@@ -131,6 +131,41 @@ class Loc(Immutable):
         assert AffLoc == other.__class__
         return Loc(self.x+other.x, self.y+other.y)
 
+    def iter(*args):
+        """
+        returns an iterator of Loc instances; arguments may contains wildcards ('*')
+        """
+        l = len(args)
+        
+        if l == 1:
+            (a, ) = args
+            if isinstance(a, Loc):
+                yield a
+            elif a == '*':
+                for x in range(8):
+                    for y in range(8):
+                        yield Loc(x, y)
+            else:
+                raise ValueError
+        elif l == 2:
+            (x, y) = args
+            if x == '*':
+                if y == '*':
+                    for res in Loc.iter('*'):
+                        yield res
+                else:
+                    for x in range(8):
+                        yield Loc(x, y)
+            elif y == '*':
+                for y in range(8):
+                    yield Loc(x, y)
+            else:
+                yield Loc(x, y)
+        else:
+            raise ValueError
+            
+    iter = staticmethod(iter)
+
 class AffLoc(Immutable):
     """
     defines vectors of the affinity space where points represented by Loc

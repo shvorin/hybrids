@@ -84,6 +84,9 @@ class Piece(Immutable):
         return lambda board: myassert(board.turn == self.col,
                                       IllegalMove, ("it's not %s's turn to move" % self.col))
 
+    def freach(self, src, dst):
+        return lambda board: self.reach(board, src, dst)
+
     def move(self, src, dst, options={}):
         """
         generic move() method is suitable for most pieces
@@ -100,6 +103,41 @@ class Piece(Immutable):
         """
         sp = self.col.show()
         return (sp*3, sp+self.sym[0]+sp)
+
+    def iter(*args):
+        l = len(args)
+        if l == 1:
+            (a, ) = args
+            if isinstance(a, Piece):
+                yield a
+            elif a == '*':
+                for col in white, black:
+                    for res in Piece.iter('*', col):
+                        yield res
+            else:
+                raise ValueError
+        elif l == 2:
+            (a, col) = args
+            if col == '*':
+                cols = [white, black]
+            elif isinstance(col, Color):
+                cols = [col]
+            else:
+                raise ValueError, "unknown color"
+            
+            if a == '*':
+                for col in cols:
+                    # FIXME: use more generic class iterator
+                    for cls in [KingPiece, PawnPiece, RookPiece, BishopPiece, KnightPiece, QueenPiece]:
+                        yield cls(col)
+                    for cls1 in [RookPiece, BishopPiece, KnightPiece, QueenPiece]:
+                        for cls2 in [RookPiece, BishopPiece, KnightPiece, QueenPiece]:
+                            if cls1 <= cls2:
+                                yield HybridPiece(cls1(col), cls2(col))
+            else:
+                raise Exception, "not implemented case"
+
+    iter = staticmethod(iter)
     
 class AtomicPiece(Piece):
     symbols = tuple('KP')
@@ -130,16 +168,17 @@ class KingPiece(AtomicPiece):
 
     def isReachable(self, src, dst):
         x, y = (dst-src)()
-        if abs(x) == 0: return abs(y) == 1
-        else:           return abs(y) <= 1
-
+        x = abs(x)
+        if   x == 0: return abs(y) == 1
+        elif x == 1: return abs(y) <= 1
+        else: return False
 
 class PawnPiece(AtomicPiece):
     symbol = 'P'
 
     def move(self, src, dst, options={}):
         x, y = (dst-src)()
-        assert 1 <= src.y <= 6
+        # assert 1 <= src.y <= 6
         
         if self.col == black:
             y = -y
@@ -216,19 +255,10 @@ class RangedPiece:
         """
         generic move() method is suitable for most pieces
         """
-        def f(board):
-            # assert isinstance(board, Board)
-            if board.turn != self.col:
-                raise IllegalMove, ("it's not %s's turn to move" % self.col)
-            hunk1 = (src, self.leave(board[src]))
-
-            # only check for IllegalMove exception
-            self.reach(board, src, dst)
-
-            hunk2 = (dst, self.join(board[dst]))
-
-            return [hunk1, hunk2]
-        return f
+        return fiter([self.fturn(),
+                      self.fleave(src),
+                      self.freach(src, dst),
+                      self.fjoin(dst)])
 
 class PrimePiece(Piece):
     symbols = tuple('RBNQ')
@@ -253,7 +283,8 @@ class PrimePiece(Piece):
         if other == self:
             rest = None
         else:
-            assert isinstance(other, HybridPiece)
+            if not isinstance(other, HybridPiece):
+                raise IllegalMove, "this is not a hybrid"
             rest = other-self
 
         return (other, rest)
@@ -262,8 +293,9 @@ class PrimePiece(Piece):
         "returns a loc-hunk 'the piece joins location'"        
         if other == None or other.col != self.col:
             return (other, self)
-        assert isinstance(other, PrimePiece)
-        return (other, self+other)
+        if isinstance(other, PrimePiece):
+            return (other, self+other)
+        raise IllegalMove, "target expected to be a prime piece"
 
     def sort2(self, other):
         # FIXME: use custom order
@@ -288,8 +320,8 @@ class RookPiece(RangedPiece, PrimePiece):
         elif y == 0:
             sign = cmp(x, 0)
             for i in range(sign, x, sign):
-                if board[aff_add(src, (i, 0))] != None:
-                    IllegalMove, "rook can't jump over pieces"
+                if board[src+AffLoc(i, 0)] != None:
+                    raise IllegalMove, "rook can't jump over pieces"
         else:
             raise IllegalMove, "impossible rook move"
 
@@ -299,7 +331,7 @@ class BishopPiece(RangedPiece, PrimePiece):
     def reach(self, board, src, dst):
         "returns nothing or raises IllegalMove"
         x, y = (dst-src)()
-        raise 'not implemented'
+        raise IllegalMove, 'not implemented'
 
 class KnightPiece(PrimePiece):
     symbol = 'N'
@@ -307,7 +339,7 @@ class KnightPiece(PrimePiece):
     def isReachable(self, src, dst):
         x, y = (dst-src)()
         x, y = abs(x), abs(y)
-        return (x==1 and y==2) or (x==2 or y==1)
+        return (x==1 and y==2) or (x==2 and y==1)
 
 
 class QueenPiece(PrimePiece):
@@ -316,8 +348,10 @@ class QueenPiece(PrimePiece):
 
     def isReachable(self, src, dst):
         x, y = (dst-src)()
-        if abs(x) == 0: return abs(y) == 1
-        else:           return abs(y) <= 1
+        x = abs(x)
+        if   x == 0: return abs(y) == 1
+        elif x == 1: return abs(y) <= 1
+        else: return False
 
 class HybridPiece(Piece):
     __slots__ = ('sym', 'col', 'p1', 'p2')
@@ -325,6 +359,9 @@ class HybridPiece(Piece):
     #symbols = ('RR', 'RB') ...
     def isReachable(self, src, dst):
         NotImplemented
+
+    def move(*args):
+        raise IllegalMove, "not implemented"
 
     def __init__(self, p1, p2):
         assert isinstance(p1, PrimePiece)

@@ -19,38 +19,6 @@ def reverse(data):
 def Const(v):
     return lambda x: v
 
-# def iterPos(pos):
-#     if pos == '*':
-#         for x in range(8):
-#             for y in range(8):
-#                 yield (x,y)
-#     else:
-#         (x, y) = pos
-#         if x == '*':
-#             if y == '*':
-#                 # FIXME
-#                 for res in iterPos('*'):
-#                     yield res
-#             else:
-#                 for x in range(8):
-#                     yield (x,y)
-#         elif y == '*':
-#             for y in range(8):
-#                 yield (x,y)
-#         else:
-#             yield pos
-
-# def iterPiece(piece):
-#     if piece == '*':
-#         for res in bpieces:
-#             yield res
-#         for res in spieces:
-#             yield res
-#             for res1 in spieces:
-#                 if res >= res1:
-#                     yield (res, res1)
-#     else:
-#         yield piece
 
 class Board:
 
@@ -222,20 +190,25 @@ with history.
         self.semimoveCount += 1
         self.turn = self.turn.inv()
 
-    def iterMove(self, wsym, wsrc, wdst, options):
-        for dst in wdst:
-            for sym in wsym:
-                for src in wsrc:
+    def iterMove(self, wpiece, wsrc, wdst, options={}):
+        for dst in Loc.iter(*wdst):
+            for piece in Piece.iter(*wpiece):
+                for src in Loc.iter(*wsrc):
                     try:
-                        patch = self.move(sym, wsrc, wdst, options)
+                        patch = piece.move(src, dst, options)(self)
+                        self.makeMove(patch)
+                        # check for checks
+                        if self.check_last_move():
+                            yield patch
+                        # FIXME: check for mate/stalemate
+                        self.undo()
                     except IllegalMove:
-                        continue
-                    self.makeMove(patch)
-                    # check for checks
-                    if self.check_last_move():
-                        yield patch
-                    # FIXME: check for mate/stalemate
-                    self.undo()
+                        pass
+                    except Exception, e:
+                        print ("(%s)" % piece, src, dst)
+                    
+    def check_last_move(self):
+        return True # not implemented
 
     # FIXME: name: it returns a patch (appliable for makeMove())
     def move(self, piece, src, dst, options={}):
@@ -252,4 +225,5 @@ with history.
         
 # test suite
 b = Board()
-
+# print available moves
+for x in b.iterMove(('*', ), ('*', ) , '*'): print x
