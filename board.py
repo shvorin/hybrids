@@ -36,10 +36,10 @@ class Board:
     
         self.history = []
 
-        # en-passant may be None either (loc, semimoveCnt);
+        # en-passant is a pair (loc_or_None, semimoveCnt);
         # if this value equals to (loc, self.semimoveCount) then en-passant move over this loc is allowed;
-        # for obsolete/non-valid semimoveCnt: (loc, semimoveCnt) is assumed to equal None
-        self.enpassant = None
+        # for obsolete/non-valid semimoveCnt: (loc, semimoveCnt) is assumed to equal (None, _)
+        self.enpassant = (None, 0)
 
         # whether casting is possible (for 'hybrids' variant it is never possible)
         self.castle_white = None
@@ -50,8 +50,15 @@ class Board:
 
         self.setup(variant)
 
-    def enpassant_possible(self, loc):
-        return self.enpassant == (loc, self.semimoveCount)
+    def enpassantLoc(self):
+        """
+        returns phantom location or None if en-passant is impossible
+        """
+        (loc, cnt) = self.enpassant
+        if cnt == self.semimoveCount:
+            return loc
+        else:
+            return None
     
     def __getitem__(self, loc):
         return self.locs[Loc(loc)]
@@ -123,7 +130,7 @@ class Board:
         self.semimoveCount = 0
         self.turn = white
         self.history = []
-        self.enpassant = None
+        self.enpassant = (None, 0)
 
         if variant == 'ortodox':
             raise "ortodox pieces should be set..."
@@ -147,17 +154,17 @@ class Board:
                 self[(x, y)] = None
         
     def applyHunk(self, loc, (old, new)):
-        # check for special (en-passant availability) cases
-        if new == 'enpassant' and old == None:
-            # next turn en-passant is possible
-            self.enpassant = (loc, self.semimoveCount+1)
-        elif old == 'enpassant' and new == None:
-            # obviously, a this is rev-hunk
-            if not self.enpassant_possible(loc):
-                raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
-            self.enpassant = None
+        if loc == None:
+            # special case(s)
+            assert type(old) == type(new) == dict
+            if new.has_key('enpassant'):
+                assert old.has_key('enpassant')
+                if old['enpassant'] != self.enpassantLoc():
+                    raise ("special hunk (%s -> %s) failed" % (old, new))
+                self.enpassant = (new['enpassant'], self.semimoveCount+1)
+            else:
+                raise 'applyHunk: unknown special case'
         else:
-            assert old != 'enpassant' and new != 'enpassant'
             # perform a sanity check
             if(old != self[loc]):
                 raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
@@ -189,6 +196,7 @@ with history.
             self.applyPatch(patch, 'rev')
             raise IllegalMove, ("%s king is left under attack" % self.turn)
         # clear history from the future
+        # FIXME
         self.history[self.semimoveCount:] = []
         self.semimoveCount += 1
         self.turn = self.turn.inv()

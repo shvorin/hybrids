@@ -225,7 +225,8 @@ class PawnPiece(AtomicPiece):
                 nextfld = src+fwd
                 fhunks.append(lambda board: myassert(board[nextfld] == None,
                                                      IllegalMove, "this pawn is blocked (case double)"))
-                fhunks.append(lambda board: (nextfld, (None, 'enpassant')))
+                fhunks.append(lambda board: (None, ({'enpassant': board.enpassantLoc()},
+                                                    {'enpassant': nextfld})))
             elif y == 1:
                 # simple move
                 fhunks.append(lambda board: myassert(board[dst] == None,
@@ -268,7 +269,7 @@ class PawnPiece(AtomicPiece):
             if target != None and target.col != self.col:
                 # do not generate a hunk here, it will be done later
                 return None
-            if board.enpassant_possible(dst):
+            if board.enpassantLoc() == dst:
                 # remove enemy pawn
                 # FIXME: extra checks...
                 if self.col == white:
