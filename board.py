@@ -147,7 +147,7 @@ class Board:
         elif variant == 'hybrids':
             self.clearPieceMap()
             
-            for x, cls in zip(range(8), [RookPiece, KnightPiece, BishopPiece, QueenPiece,
+            for x, cls in zip(range(8), [RookPiece, KnightPiece, BishopPiece, GuardPiece,
                                          KingPiece, BishopPiece, KnightPiece, RookPiece]):
                 for col, y in (white, 0), (black, 7):
                     loc = Loc(x, y)

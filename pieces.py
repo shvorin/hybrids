@@ -330,7 +330,7 @@ class PawnPiece(AtomicPiece):
 
         if src.y == PawnPiece.seventhRank[self.col]:
             for dst in iterDst():
-                for cls in RookPiece, BishopPiece, KnightPiece, QueenPiece:
+                for cls in RookPiece, BishopPiece, KnightPiece, GuardPiece:
                     try:
                         yield self.move(src, dst, {'promote': cls(self.col)})(board)
                     except IllegalMove:
@@ -455,8 +455,8 @@ class KnightPiece(PrimePiece):
         return fraise(IllegalMove, "invalid knight move")
 
 
-class QueenPiece(PrimePiece):
-    """Note, in hybrids the queen moves in the same manner as the king!"""
+class GuardPiece(PrimePiece):
+    """Guard moves like a (nonroyal) king"""
     symbol = 'Q'
     ordinal = 4
 
@@ -468,7 +468,7 @@ class QueenPiece(PrimePiece):
         elif x == 1:
             if abs(y) <= 1: return fconst_None
 
-        return fraise(IllegalMove, "invalid queen move")
+        return fraise(IllegalMove, "invalid guard move")
 
 class HybridPiece(Piece):
     __slots__ = ('sym', 'col', 'p1', 'p2')
@@ -519,4 +519,4 @@ class HybridPiece(Piece):
         raise TypeError, "ord() not supported for hybrids"
 
 atomic_pieces = PawnPiece, KingPiece
-prime_pieces = RookPiece, BishopPiece, KnightPiece, QueenPiece
+prime_pieces = RookPiece, BishopPiece, KnightPiece, GuardPiece
