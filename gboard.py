@@ -48,6 +48,11 @@ class GBoard:
         # where shift is difference between items original coordinates and
         # cursor position at the moment of selecting
         self.selected = None
+
+        # user's option, may be None or some subclass of PrimePiece
+        # the pawn will be promoted to that piece without question
+        # TODO: this should be _option_
+        self.alwaysPromote = RookPiece
         
         self.root = Tk()
         if not GBoard.photoimages:
@@ -105,6 +110,7 @@ class GBoard:
         self.c.bind('<ButtonRelease-1>', self.mouseUp)
         self.c.bind('<KeyRelease>', self.keyRelease)
         self.c.bind('<KeyPress>', self.keyPress)
+        self.c.focus_set()
 
         self.c.pack(side=LEFT,expand=YES,fill=BOTH)
         self.drawPosition()
@@ -115,9 +121,7 @@ class GBoard:
         loc = self.getLoc(event.x, event.y)
         if loc:
             piece = self.board[loc]
-            print loc, piece
             if piece == None:
-                print 'mouseDown: empty'
                 self.selected = None
             elif piece.ishybrid():
                 img1, img2 = self.boardDrawn[loc]
@@ -127,31 +131,25 @@ class GBoard:
                 threshold *= 3
                 if threshold < self.ysize:
                     # upper chosen
-                    print 'mouseDown: upper'
                     self.selected = (loc, piece.p2,
                                      ((img2, sub2(self.upperField(loc), event_coords)), ))
                 elif threshold > 2*self.ysize:
                     # lower chosen
-                    print 'mouseDown: lower'
                     self.selected = (loc, piece.p1,
                                      ((img1, sub2(self.lowerField(loc), event_coords)), ))
                 else:
                     # both chosen
-                    print 'mouseDown: both'
                     self.selected = (loc, piece,
                                      ((img1, sub2(self.lowerField(loc), event_coords)),
                                       (img2, sub2(self.upperField(loc), event_coords))))
             else:
                 # not hybrid
-                print 'mouseDown: not hybrid'
                 (img, ) = self.boardDrawn[loc]
                 self.selected = (loc, piece, ((img, sub2(self.centerField(loc), event_coords)), ))
         else:
-            print 'mouseDown: out of range'
             self.selected = None
                     
     def mouseMove(self, event):
-        print self.selected
         if self.selected:
             loc, piece, item_shifts = self.selected
             for item, (x, y) in item_shifts:
@@ -159,27 +157,51 @@ class GBoard:
                 self.c.tkraise(item)
 
     def mouseUp(self, event):
-        print self.selected
         if self.selected:
             loc, piece, item_shifts = self.selected
             newloc = self.getLoc(event.x, event.y)
             if newloc:
                 try:
-                    self.board.move(piece, loc, newloc)
+                    # FIXME: a special exception will be raised if options['promote'] requred,
+                    # so it's better to handle this exception
+                    options = {}
+                    if piece.__class__ == PawnPiece:
+                        col = self.board.turn
+                        z = (col, newloc.y)
+                        if z == (white, 7) or z == (black, 0):
+                            if self.alwaysPromote:
+                                options['promote'] = self.alwaysPromote(col)
+                            else:
+                                print 'not implemented: alwaysPromote is unset'
+                                # IllegalMove to be raised...
+                        
+                    self.board.move(piece, loc, newloc, options)
                 except IllegalMove, msg:
                     print IllegalMove, msg
                     
             self.selected = None
-        else:
-            print 'mouseUp: not selected, nothing to do'
 
         # FIXME: may be too expensive
         self.drawPosition()
 
     def keyRelease(self, event):
-        pass
+        from string import upper
+        key = upper(event.keysym)
+
+        if key == 'BACKSPACE' or key == 'LEFT':
+            self.undo()
+        elif key == 'RIGHT':
+            self.redo()
+        elif key == 'D':
+            print 'Current position:'
+            print self.board
+        elif key == 'M':
+            print 'All legal moves:'
+            for patch in self.board.iterMove(('*', ), ('*', ), ('*', )):
+                print patch
 
     def keyPress(self, event):
+        print 'keyPress: ', event.keysym
         pass
 
     def drawPosition(self):
@@ -239,3 +261,11 @@ class GBoard:
             item = self.c.create_image(*coords)
             self.c.itemconfigure(item, image=GBoard.photoimages[piece])
             self.boardDrawn[loc] += (item, )
+
+    def undo(self):
+        self.board.undo()
+        self.drawPosition()
+
+    def redo(self):
+        self.board.redo()
+        self.drawPosition()
