@@ -158,6 +158,10 @@ class Piece(Immutable):
                 raise Exception, "not implemented case"
 
     iter = staticmethod(iter)
+
+    def ord(self):
+        # each subclass should define it's ordinal number
+        return self.__class__.ordinal
     
 class AtomicPiece(Piece):
     symbols = tuple('KP')
@@ -170,6 +174,7 @@ class AtomicPiece(Piece):
 
 class KingPiece(AtomicPiece):
     symbol = 'K'
+    ordinal = 0 # the lowest
 
     def reach(self, src, dst):
         x, y = (dst-src)()
@@ -183,6 +188,7 @@ class KingPiece(AtomicPiece):
 
 class PawnPiece(AtomicPiece):
     symbol = 'P'
+    ordinal = 1000 # the highest
 
     def move(self, src, dst, options={}):
         x, y = (dst-src)()
@@ -305,7 +311,7 @@ class PrimePiece(Piece):
 
     def sort2(self, other):
         # FIXME: use custom order
-        if self.sym < other.sym:
+        if self.ord() < other.ord():
             return self, other
         else:
             return other, self
@@ -313,6 +319,7 @@ class PrimePiece(Piece):
 
 class RookPiece(RangedPiece, PrimePiece):
     symbol = 'R'
+    ordinal = 1
 
     def reach0(self, board, src, dst):
         "returns nothing or raises IllegalMove"
@@ -333,7 +340,8 @@ class RookPiece(RangedPiece, PrimePiece):
 
 class BishopPiece(RangedPiece, PrimePiece):
     symbol = 'B'
-
+    ordinal = 2
+    
     def reach0(self, board, src, dst):
         "returns nothing or raises IllegalMove"
         x, y = (dst-src)()
@@ -353,6 +361,7 @@ class BishopPiece(RangedPiece, PrimePiece):
 
 class KnightPiece(PrimePiece):
     symbol = 'N'
+    ordinal = 3
 
     def reach(self, src, dst):
         x, y = (dst-src)()
@@ -366,6 +375,7 @@ class KnightPiece(PrimePiece):
 class QueenPiece(PrimePiece):
     """Note, in hybrids the queen moves in the same manner as the king!"""
     symbol = 'Q'
+    ordinal = 4
 
     def reach(self, src, dst):
         x, y = (dst-src)()
@@ -422,3 +432,5 @@ class HybridPiece(Piece):
         sp = self.col.show()
         return (sp+self.p2.sym[0]+sp, sp+self.p1.sym[0]+sp)
     
+    def ord(self):
+        raise TypeError, "ord() not supported for hybrids"
