@@ -23,18 +23,39 @@ def sort2((p1, p2)):
     else:
         return (p1, p2)
 
+def aff_sub((x1, x2), (y1, y2)):
+    "affinity subtraction"
+    return (x1-y1, x2-y2)
+
+def aff_add((x1, x2), (y1, y2)):
+    "affinity addition"
+    return (x1+y1, x2+y2)
+
+# an iterator
+def reverse(data):
+    for index in range(len(data)-1, -1, -1):
+        yield data[index]
+
+# do not rely on representation (i.e. don't use "not color")
+def invColor(col):
+    if col == black: return white
+    else: return black
+
 class Board:
     turn = None
-    moveCount = 0
+    semimoveCount = 0
     locs = {}
     for x in range(8):
         for y in range(8):
             locs[(x,y)] = E
     
     b_pieces = {}
+    w_pieces = {}
     for p in pieces:
         b_pieces[p] = []
-    w_pieces = b_pieces
+        w_pieces[p] = []
+    
+    history = []
     
     def getLoc(self, pos):
         return self.locs[pos]
@@ -69,44 +90,89 @@ class Board:
 -+---+---+---+---+---+---+---+---+-
  |...|...|...|...|...|...|...|...| 
 8|.R.|.N.|.B.|.Q.|.K.|.B.|.N.|.R.|8
- |...|...|...|...|...|...|...|...| 
 -+---+---+---+---+---+---+---+---+-
  |...|...|...|...|...|...|...|...| 
 7|.P.|.P.|.P.|.P.|.P.|.P.|.P.|.P.|7
- |...|...|...|...|...|...|...|...| 
 -+---+---+---+---+---+---+---+---+-
  |   |   |   |   |   |   |   |   | 
 6|   |   |   |   |   |   |   |   |6
- |   |   |   |   |   |   |   |   | 
 -+---+---+---+---+---+---+---+---+-
  |   |   |   |   |   |   |   |   | 
 5|   |   |   |   |   |   |   |   |5
- |   |   |   |   |   |   |   |   | 
 -+---+---+---+---+---+---+---+---+-
  |   |   |   |   |   |   |   |   | 
 4|   |   |   |   |   |   |   |   |4
- |   |   |   |   |   |   |   |   | 
 -+---+---+---+---+---+---+---+---+-
  |   |   |   |   |   |   |   |   | 
 3|   |   |   |   |   |   |   |   |3
- |   |   |   |   |   |   |   |   | 
 -+---+---+---+---+---+---+---+---+-
  |   |   |   |   |   |   |   |   | 
 2| P | P | P | P | P | P | P | P |2
- |   |   |   |   |   |   |   |   | 
 -+---+---+---+---+---+---+---+---+-
  |   |   |   |   |   |   |   |   | 
 1| R | N | B | Q | K | B | N | R |1
- |   |   |   |   |   |   |   |   | 
 -+---+---+---+---+---+---+---+---+-
- | a | b | c | d | e | f | g | h |
+ | a | b | c | d | e | f | g | h | 
 """
-        for x in range(8):
-            self.locs[(x,1)] = (P, white)
-            self.locs[(x,6)] = (P, black)
-        for x, p in zip(range(8), [R, N, B, Q, K, B, N, R]):
-            self.locs[x,0] = (p, white)
-            self.locs[x,7] = (p, black)
+        self.semimoveCount = 0
+        self.turn = white
+        history = []
+        
+        for p, xs in zip([R, N, B, Q, K], [[0,7], [1,6], [2,5], [3], [4]]):
+            self.w_pieces[p] = [(x, 0) for x in xs]
+            self.b_pieces[p] = [(x, 7) for x in xs]
+        
+        self.w_pieces[P] = [(x, 1) for x in range(8)]
+        self.b_pieces[P] = [(x, 6) for x in range(8)]
+        
+        for p, poses in self.w_pieces.iteritems():
+            for pos in poses:
+                self.locs[pos] = (p, white)
+        
+        for p, poses in self.b_pieces.iteritems():
+            for pos in poses:
+                self.locs[pos] = (p, black)
+
+    def applyPatch(self, patch, rev=False):
+        """Applies a patch (a list of hunks) to the current position.
+A single hunk is a triple: location, a piece a this location to be removed
+and a new piece to be placed at this location.
+
+It should not be called directly, since it alters the board, but does nothing
+with history.
+"""
+        if rev:
+            for (pos, old, new) in reverse(patch):
+                # perform a sanity check
+                if(new != self.getLoc(pos)):
+                    raise "hunk failed"
+                self.locs[pos] = old
+        else:
+            for (pos, old, new) in patch:
+                # perform a sanity check
+                if(old != self.getLoc(pos)):
+                    raise "hunk failed"
+                self.locs[pos] = new
+    
+    def makeMove(self, patch):
+        self.applyPatch(patch)
+        # clear history from the future
+        self.history[self.semimoveCount:] = []
+        self.semimoveCount = self.semimoveCount+1
+        self.turn = invColor(self.turn)
+        self.history.append(patch)
+    
+    def undo(self):
+        if self.semimoveCount == 0:
+            raise "undo: it the first position"
+        self.applyPatch(self.history[self.semimoveCount-1], rev=True)
+        self.semimoveCount = self.semimoveCount-1
+
+    def redo(self):
+        if len(self.history) == self.semimoveCount:
+            raise "redo: it the last position"
+        self.applyPatch(self.history[self.semimoveCount])
+        self.semimoveCount = self.semimoveCount+1
 
 class Piece:
     def __init__(self, sym, col):
@@ -122,6 +188,10 @@ class Piece:
     def moveto(self, board, src, dst):
         raise "pure virtual"
     
+    def isReachable(self, src, dst):
+        "returns True iff dst is reachable from src for some board position"
+        raise "pure virtual"
+        
     def isHybriding(self):
         return False
     
@@ -222,24 +292,51 @@ class Hybrid(Piece):
         p1 = showPiece[sym1]
         p2 = showPiece[sym2]
         return (sp+p2+sp, sp+p1+sp)
+    
+    def isReachable(self, src, dst):
+        (sym1, sym2) = self.sym
+        col = self.col
+        return pieceObjects[(sym1, col)].isReachable(src, dst) or \
+               (sym1 != sym2 and pieceObjects[(sym2, col)].isReachable(src, dst))
 
 class King(BPiece):
-    pass
-
+    def isReachable(self, src, dst):
+        (x, y) = aff_sub(dst, src)
+        if abs(x) == 0: return abs(y) == 1
+        else:           return abs(y) <= 1
+        
 class Pawn(BPiece):
-    pass
+    def isReachable(self, src, dst):
+        (x, y) = aff_sub(dst, src)
+        if self.col == black:
+            y = -y
+            is_moved = src[1] - 6
+        else:
+            is_moved = src[1] - 1
+        return (y == 1 and abs(x) <= 1) or (y == 2 and not is_moved)
 
 class Rook(SPiece):
-    pass
+    def isReachable(self, src, dst):
+        (x, y) = aff_sub(dst, src)
+        # FIXME: I'd like to have xor in python
+        if x==0: return y != 0
+        else:    return y == 0
 
 class Queen(SPiece):
-    pass
+    "Note, in hybrids the queen moves in the same manner as the king!"
+    isReachable = King.isReachable
 
 class Bishop(SPiece):
-    pass
+    def isReachable(self, src, dst):
+        (x, y) = aff_sub(dst, src)
+        if x==0: return False
+        else:    return abs(x) == abs(y)
 
 class Knight(SPiece):
-    pass
+    def isReachable(self, src, dst):
+        (x, y) = aff_sub(dst, src)
+        (x, y) = (abs(x), abs(y))
+        return (x==1 and y==2) or (x==2 or y==1)
 
 def init_pieceObjects():
     map = {K: King, P: Pawn, Q: Queen, R: Rook, B: Bishop, N: Knight}
