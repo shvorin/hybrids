@@ -41,6 +41,13 @@ def invColor(col):
     if col == black: return white
     else: return black
 
+letters = {}
+for letter, num in zip("abcdefgh", range(8)):
+    letters[letter] = num
+
+def scanPos(s):
+    return (letters[s[0]], int(s[1])-1)
+
 class Board:
     turn = None
     semimoveCount = 0
@@ -353,3 +360,12 @@ def init_pieceObjects():
 
 init_pieceObjects()
 
+
+# test suite
+b = Board()
+b.setup()
+
+def move(s, new):
+    pos = scanPos(s)
+    b.makeMove([(pos, b.getLoc(pos), new)])
+    
