@@ -8,6 +8,25 @@ from board import *
 from pieces import *
 
 class GBoard:
+    photoimages = {}
+
+    def init_photoimages():
+        for piece, filename in ((wP, 'pawnw.gif'),
+                                (bP, 'pawnb.gif'),
+                                (wK, 'kingw.gif'),
+                                (bK, 'kingb.gif'),
+                                (wR, 'rookw.gif'),
+                                (bR, 'rookb.gif'),
+                                (wB, 'bishopw.gif'),
+                                (bB, 'bishopb.gif'),
+                                (wN, 'knightw.gif'),
+                                (bN, 'knightb.gif'),
+                                (wQ, 'queenw.gif'),
+                                (bQ, 'queenb.gif')):
+            GBoard.photoimages[piece] = PhotoImage(file=filename)
+            
+    init_photoimages = staticmethod(init_photoimages)
+
 
     def __init__(self, board=None):
         if board:
@@ -16,7 +35,18 @@ class GBoard:
             self.board = Board()
             self.board.setup()
 
+        # maps locs to all drawn pieces
+        self.boardDrawn = {}
+        for x in range(8):
+            for y in range(8):
+                self.boardDrawn[Loc(x,y)] = ()
+
+        self.selectedItems = ()
+        
         self.root = Tk()
+        if not GBoard.photoimages:
+            GBoard.init_photoimages()
+        
         # FIXME: show various variants
         self.root.wm_title("chess ('%s' variant)" % self.board.variant)
         self.root.wm_iconname("chess")
@@ -70,14 +100,45 @@ class GBoard:
         self.c.bind('<KeyRelease>', self.keyRelease)
         self.c.bind('<KeyPress>', self.keyPress)
 
-        self.drawPosition()
+#         self.drawPosition()
 
         self.c.pack(side=LEFT,expand=YES,fill=BOTH)
 
 
     def mouseDown(self, event):
-        pass
-
+        xcell, ycell = event.x / self.xsize - 1, 7 - (event.y / self.ysize - 1)
+        if xcell in range(8) and ycell in range(8):
+            loc = Loc(xcell, ycell)
+            piece = self.board[loc]
+            print loc, piece
+            if piece == None:
+                print 'mouseDown: empty'
+                self.selectedItems = ()
+            elif piece.ishybrid():
+                # check event.y more precisely
+                threshold = (event.y - (7-ycell+1)*self.ysize)
+                assert 0 <= threshold <= self.ysize
+                threshold *= 3
+                if threshold < self.ysize:
+                    # upper chosen
+                    print 'mouseDown: upper'
+                    self.selectedItems = (piece.p1, )
+                elif threshold > 2*self.ysize:
+                    # lower chosen
+                    print 'mouseDown: lower'
+                    self.selectedItems = (piece.p2, )
+                else:
+                    # both chosen
+                    print 'mouseDown: both'
+                    self.selectedItems = (piece.p1, piece.p1)
+            else:
+                # not hybrid
+                print 'mouseDown: not hybrid'
+                self.selectedItems = (piece, )
+        else:
+            print 'mouseDown: out of range'
+            self.selectedItems = ()
+                    
     def mouseMove(self, event):
         pass
 
@@ -91,4 +152,41 @@ class GBoard:
         pass
 
     def drawPosition(self):
-        pass
+        for x in range(8):
+            for y in range(8):
+                loc = Loc(x, y)
+                self.drawPiece(self.board[loc], loc)
+
+    def centerField(self, loc):
+        x, y = loc()
+        
+        return (x+1.5)*self.xsize, (7-y+1.5)*self.ysize
+
+    def upperField(self, loc):
+        x, y = loc()
+        
+        return (x+1.5)*self.xsize, (7-y+1+1./3.)*self.ysize
+
+    def lowerField(self, loc):
+        x, y = loc()
+        
+        return (x+1.5)*self.xsize, (7-y+1+2./3.)*self.ysize
+
+    def drawPiece(self, piece, loc):
+        for item in self.boardDrawn[loc]:
+                self.c.delete(item)
+
+        self.boardDrawn[loc] = ()
+        
+        if piece == None:
+            return
+        
+        if piece.ishybrid():
+            for p, fld_func in (piece.p2, self.lowerField), (piece.p1, self.upperField):
+                item = self.c.create_image(*fld_func(loc))
+                self.c.itemconfigure(item, image=GBoard.photoimages[p])
+                self.boardDrawn[loc] += (item, )
+        else:
+            item = self.c.create_image(*self.centerField(loc))
+            self.c.itemconfigure(item, image=GBoard.photoimages[piece])
+            self.boardDrawn[loc] += (item, )
