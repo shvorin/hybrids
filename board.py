@@ -269,7 +269,7 @@ with history.
             raise IllegalMove, ("source position %s is empty" % str(src))
         (src_sym, src_col) = src_piece
         if src_col != self.turn:
-            raise IllegalMove, "attempt to move ememy's piece"
+            raise IllegalMove, "attempt to move enemy's piece"
         
         movingPiece = pieceObjects[sym]
         NotImplemented
