@@ -225,7 +225,7 @@ class PawnPiece(AtomicPiece):
                 nextfld = src+fwd
                 fhunks.append(lambda board: myassert(board[nextfld] == None,
                                                      IllegalMove, "this pawn is blocked (case double)"))
-                fhunks.append(lambda board: ('enpassant', (board.enpassantLoc(), nextfld)))
+                fhunks.append(lambda board: board.enpassantHunk(nextfld))
             elif y == 1:
                 # simple move
                 fhunks.append(lambda board: myassert(board[dst] == None,

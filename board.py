@@ -35,8 +35,9 @@ class Board:
                 self[(x,y)] = None
     
         self.history = []
+        self.historyEnd = 0
 
-        # en-passant is a pair (loc_or_None, semimoveCnt);
+        # en-passant state is a pair (loc_or_None, semimoveCnt);
         # if this value equals to (loc, self.semimoveCount) then en-passant move over this loc is allowed;
         # for obsolete/non-valid semimoveCnt: (loc, semimoveCnt) is assumed to equal (None, _)
         self.enpassant = (None, 0)
@@ -50,23 +51,6 @@ class Board:
 
         self.setup(variant)
 
-    def enpassantLoc(self):
-        """
-        returns phantom location or None if en-passant is impossible
-        """
-        (loc, cnt) = self.enpassant
-        if cnt == self.semimoveCount:
-            return loc
-        else:
-            return None
-        
-    def enpassantLoc_rev(self):
-        (loc, cnt) = self.enpassant
-        if cnt == self.semimoveCount+1:
-            return loc
-        else:
-            return None
-    
     def __getitem__(self, loc):
         return self.locs[Loc(loc)]
 
@@ -137,6 +121,7 @@ class Board:
         self.semimoveCount = 0
         self.turn = white
         self.history = []
+        self.historyEnd = 0
         self.enpassant = (None, 0)
 
         if variant == 'ortodox':
@@ -169,24 +154,9 @@ class Board:
         # special case(s) follows
         elif loc == 'enpassant':
             # sanity check
-            if old != self.enpassantLoc():
+            if old != self.enpassant:
                 raise ("special hunk (%s -> %s) failed" % (old, new))
-            self.enpassant = (new, self.semimoveCount+1)
-        else:
-            raise 'applyHunk: unknown special case'
-
-    def applyHunk_rev(self, loc, (old, new)):
-        if loc.__class__ == Loc:
-            # perform a sanity check
-            if(new != self[loc]):
-                raise ("rev hunk (%s: %s -> %s) failed" % (loc, old, new))
-            self[loc] = old
-        # special case(s) follows
-        elif loc == 'enpassant':
-            # sanity check
-            if new != self.enpassantLoc_rev():
-                raise ("special hunk (%s -> %s) failed\ncurrent epLoc %s" % (old, new, self.enpassantLoc()))
-            self.enpassant = (old, self.semimoveCount)
+            self.enpassant = new
         else:
             raise 'applyHunk: unknown special case'
 
@@ -198,14 +168,12 @@ and a new piece to be placed at this location.
 It should not be called directly, since it alters the board, but does nothing
 with history.
 """
-        print "applyPatch(rev %s)\nbefore:" % rev, self.semimoveCount, self.enpassant
         if rev:
-            for hunk in reverse(patch):
-                self.applyHunk_rev(*hunk)
+            for (loc, (old, new)) in reverse(patch):
+                self.applyHunk(loc, (new, old))
         else:
             for hunk in patch:
                 self.applyHunk(*hunk)
-        print "after", self.semimoveCount, self.enpassant
     
     def makeMove(self, patch):
         """tries to apply the patch and alters the history"""
@@ -216,11 +184,12 @@ with history.
         if self.kingAttacked(self.turn):
             self.applyPatch(patch, 'rev')
             raise IllegalMove, ("%s king is left under attack" % self.turn)
+        self.history[self.semimoveCount:] = [patch]
         self.semimoveCount += 1
         self.turn = self.turn.inv()
-        self.history.append(patch)
     
     def undo(self):
+        assert self.semimoveCount >= 0
         if self.semimoveCount == 0:
             raise "undo: it's the first position"
         self.semimoveCount -= 1
@@ -228,7 +197,8 @@ with history.
         self.turn = self.turn.inv()
 
     def redo(self):
-        if len(self.history) == self.semimoveCount:
+        assert self.semimoveCount <= self.historyEnd
+        if self.semimoveCount == self.historyEnd:
             raise "redo: it's the last position"
         self.applyPatch(self.history[self.semimoveCount])
         self.semimoveCount += 1
@@ -240,11 +210,8 @@ with history.
                 for src in Loc.iter(*wsrc):
                     try:
                         patch = piece.move(src, dst, options)(self)
-                        print "\ttrying patch", patch
                         self.makeMove(patch)
-                        print "\tafter makeMove"
                         self.undo()
-                        print "\tafter undo\n"
                         yield patch
                     except IllegalMove:
                         pass
@@ -300,10 +267,8 @@ with history.
 
         # IllegalMove may be raised
         patch = piece.move(src, dst, options)(self)
-        # clear history from the future
-        # FIXME
-        self.history[self.semimoveCount:] = []
         self.makeMove(patch)
+        self.historyEnd = self.semimoveCount
 
         # check for check/mate/stalemate after the move
         result = self.detectMate()
@@ -318,12 +283,28 @@ with history.
                 score = '1:0'
             else:
                 score = '0:1'
-            print ('%s mate:\nResult: %s' % (winner, score))
+            print ('mate, %s win:\nResult: %s' % (winner, score))
             self.gameover = score
         else:
             assert result == None
 
-        
+    def enpassantHunk(self, loc):
+        """
+        returns new en-passant hunk appliable to the current position
+        """
+        return ('enpassant', (self.enpassant, (loc, self.semimoveCount+1)))
+
+    def enpassantLoc(self):
+        """
+        returns phantom location or None if en-passant is impossible now
+        """
+        (loc, cnt) = self.enpassant
+        if cnt == self.semimoveCount:
+            return loc
+        else:
+            return None
+    
+
 # test suite
 b = Board()
 
