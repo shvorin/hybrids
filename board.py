@@ -44,7 +44,7 @@ class Board:
         s = s + ' | a | b | c | d | e | f | g | h | \n'
         s = s + '-+---+---+---+---+---+---+---+---+-\n'
         for y in range(7, -1, -1):
-            for i in range(3):
+            for i in range(2):
                 if i==1:
                     extra = str(y+1)
                 else:
@@ -131,7 +131,7 @@ class Piece:
     def show(self):
         sp = showColor[self.col]
         p0 = showPiece[self.sym]
-        return (sp*3, sp+p0+sp, sp*3)
+        return (sp*3, sp+p0+sp)
 
 # no hybriding ability
 class BPiece(Piece):
@@ -213,15 +213,15 @@ class Hybrid(Piece):
             raise "invalid dst"
     
     def show(self):
-        """returns a triple like this:
+        """returns a pair like this:
 .N.
 .R.
-..."""
+"""
         sp = showColor[self.col]
         (sym1, sym2) = self.sym
         p1 = showPiece[sym1]
         p2 = showPiece[sym2]
-        return (sp+p2+sp, sp+p1+sp, sp*3)
+        return (sp+p2+sp, sp+p1+sp)
 
 class King(BPiece):
     pass
