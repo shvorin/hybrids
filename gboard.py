@@ -6,6 +6,7 @@ __id__ = "$Id$"
 from Tkinter import *
 from board import *
 from pieces import *
+import os.path
 
 def sub2((x1, y1), (x2, y2)):
     return x1-x2, y1-y2
@@ -26,7 +27,7 @@ class GBoard:
                                 (bN, 'knightb.gif'),
                                 (wQ, 'queenw.gif'),
                                 (bQ, 'queenb.gif')):
-            GBoard.photoimages[piece] = PhotoImage(file=filename)
+            GBoard.photoimages[piece] = PhotoImage(file=os.path.join('images', filename))
             
     init_photoimages = staticmethod(init_photoimages)
 
