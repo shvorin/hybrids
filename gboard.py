@@ -1,5 +1,4 @@
 
-
 __id__ = "$Id$"
 # __all__ = []
 
@@ -41,8 +40,9 @@ class GBoard:
             for y in range(8):
                 self.boardDrawn[Loc(x,y)] = ()
 
-        # may be a pair (loc, items_tupple) or None
-        self.selectedItem = None
+        # may be a pair (loc, piece, items_tupple) or None;
+        # items_tupple is a tupple (1 or 2 values) of (item, coords) pair
+        self.selected = None
         
         self.root = Tk()
         if not GBoard.photoimages:
@@ -101,20 +101,18 @@ class GBoard:
         self.c.bind('<KeyRelease>', self.keyRelease)
         self.c.bind('<KeyPress>', self.keyPress)
 
-#         self.drawPosition()
-
         self.c.pack(side=LEFT,expand=YES,fill=BOTH)
-
+        self.drawPosition()
 
     def mouseDown(self, event):
         xcell, ycell = event.x / self.xsize - 1, 7 - (event.y / self.ysize - 1)
-        if xcell in range(8) and ycell in range(8):
-            loc = Loc(xcell, ycell)
+        loc = self.getLoc(event.x, event.y)
+        if loc:
             piece = self.board[loc]
             print loc, piece
             if piece == None:
                 print 'mouseDown: empty'
-                self.selectedItem = None
+                self.selected = None
             elif piece.ishybrid():
                 # check event.y more precisely
                 threshold = (event.y - (7-ycell+1)*self.ysize)
@@ -123,36 +121,56 @@ class GBoard:
                 if threshold < self.ysize:
                     # upper chosen
                     print 'mouseDown: upper'
-                    self.selectedItem = (loc, (self.boardDrawn[loc][1], ))
+                    self.selected = (loc, piece.p1, (self.boardDrawn[loc][1], ))
                 elif threshold > 2*self.ysize:
                     # lower chosen
                     print 'mouseDown: lower'
-                    self.selectedItem = (loc, (self.boardDrawn[loc][0], ))
+                    self.selected = (loc, piece.p2, (self.boardDrawn[loc][0], ))
                 else:
                     # both chosen
                     print 'mouseDown: both'
-                    self.selectedItem = (loc, self.boardDrawn[loc])
+                    self.selected = (loc, piece, self.boardDrawn[loc])
             else:
                 # not hybrid
                 print 'mouseDown: not hybrid'
-                self.selectedItem = (loc, self.boardDrawn[loc])
+                self.selected = (loc, piece, self.boardDrawn[loc])
         else:
             print 'mouseDown: out of range'
-            self.selectedItem = None
+            self.selected = None
                     
     def mouseMove(self, event):
-        print self.selectedItem
-        if self.selectedItem:
-            (loc, items) = self.selectedItem
-            x, y = self.centerField(loc)
-            dx, dy = event.x-x, event.y-y
-            print dx, dy
-            for it in items:
-                self.c.move(it, dx, dy)
-                self.c.tkraise(it)
+        print self.selected
+        if self.selected:
+            (loc, piece, item_coords) = self.selected
+            #             x, y = self.centerField(loc)
+            #             dx, dy = event.x-x, event.y-y
+            # FIXME: make more precise item moving
+            for item, coords in item_coords:
+                self.c.coords(item, event.x, event.y)
+                self.c.tkraise(item)
 
     def mouseUp(self, event):
-        pass
+        print self.selected
+        if self.selected:
+            loc, piece, item_coords = self.selected
+            newloc = self.getLoc(event.x, event.y)
+            if newloc:
+                try:
+                    self.board.move(piece, loc, newloc)
+                except IllegalMove, msg:
+                    print IllegalMove, msg
+                    
+            self.selected = None
+        else:
+            print 'mouseUp: not selected, nothing to do'
+
+        # FIXME: may be too expensive
+        self.drawPosition()
+
+    def restore_items(self, item_coords):
+        print 'restore_items'
+        for item, coords in item_coords:
+            self.c.coords(item, *coords)
 
     def keyRelease(self, event):
         pass
@@ -181,9 +199,25 @@ class GBoard:
         
         return (x+1.5)*self.xsize, (7-y+1+2./3.)*self.ysize
 
+    def getLoc(self, *args):
+        """
+        for given coordinates x,y returns corresponding location;
+        if arguments are out of range None is returned
+        """
+        l = len(args)
+        if l == 1:
+            (args, ) = args
+        elif l != 2:
+            raise ValueError
+        x, y = args
+        try:
+            return Loc(x/self.xsize-1, 7-(y / self.ysize-1))
+        except ValueError: # out of range
+            return None
+
     def drawPiece(self, piece, loc):
-        for item in self.boardDrawn[loc]:
-                self.c.delete(item)
+        for item, coords in self.boardDrawn[loc]:
+            self.c.delete(item)
 
         self.boardDrawn[loc] = ()
         
@@ -192,10 +226,12 @@ class GBoard:
         
         if piece.ishybrid():
             for p, fld_func in (piece.p2, self.lowerField), (piece.p1, self.upperField):
-                item = self.c.create_image(*fld_func(loc))
+                coords = fld_func(loc)
+                item = self.c.create_image(*coords)
                 self.c.itemconfigure(item, image=GBoard.photoimages[p])
-                self.boardDrawn[loc] += (item, )
+                self.boardDrawn[loc] += ((item, coords), )
         else:
-            item = self.c.create_image(*self.centerField(loc))
+            coords = self.centerField(loc)
+            item = self.c.create_image(*coords)
             self.c.itemconfigure(item, image=GBoard.photoimages[piece])
-            self.boardDrawn[loc] += (item, )
+            self.boardDrawn[loc] += ((item, coords), )
