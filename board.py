@@ -48,24 +48,65 @@ for letter, num in zip("abcdefgh", range(8)):
 def scanPos(s):
     return (letters[s[0]], int(s[1])-1)
 
+def iterPos(pos):
+    if pos == '*':
+        for x in range(8):
+            for y in range(8):
+                yield (x,y)
+    else:
+        (x, y) = pos
+        if x == '*':
+            if y == '*':
+                # FIXME
+                for res in iterPos('*'):
+                    yield res
+            else:
+                for x in range(8):
+                    yield (x,y)
+        elif y == '*':
+            for y in range(8):
+                yield (x,y)
+        else:
+            yield pos
+
+def iterPiece(piece):
+    if piece == '*':
+        for res in bpieces:
+            yield res
+        for res in spieces:
+            yield res
+            for res1 in spieces:
+                if res >= res1:
+                    yield (res, res1)
+    else:
+        yield piece
+
 class IllegalMove(Exception):
     pass
 
 class Board:
-    turn = None
-    semimoveCount = 0
-    locs = {}
-    for x in range(8):
-        for y in range(8):
-            locs[(x,y)] = E
+    def __init__(self):
+        self.turn = None
+        self.semimoveCount = 0
+        self.locs = {}
+        for x in range(8):
+            for y in range(8):
+                self.locs[(x,y)] = E
     
-    b_pieces = {}
-    w_pieces = {}
-    for p in pieces:
-        b_pieces[p] = []
-        w_pieces[p] = []
+        self.b_pieces = {}
+        self.w_pieces = {}
+        for p in pieces:
+            self.b_pieces[p] = []
+            self.w_pieces[p] = []
     
-    history = []
+        self.history = []
+        # en-passant may be None either (pos, semimoveCnt);
+        # if this value equals to (pos, self.semimoveCount) then en-passant move over this pos is allowed;
+        # for obsolete/non-valid semimoveCnt: (pos, semimoveCnt) is assumed to equal None
+        self.enpassant = None
+
+    def enpassant_possible(self, pos):
+        return self.enpassant == (pos, self.semimoveCount)
     
     def getLoc(self, pos):
         return self.locs[pos]
@@ -127,7 +168,8 @@ class Board:
 """
         self.semimoveCount = 0
         self.turn = white
-        history = []
+        self.history = []
+        self.enpassant = None
         
         for p, xs in zip([R, N, B, Q, K], [[0,7], [1,6], [2,5], [3], [4]]):
             self.w_pieces[p] = [(x, 0) for x in xs]
@@ -144,6 +186,25 @@ class Board:
             for pos in poses:
                 self.locs[pos] = (p, black)
 
+    def applyHunk(self, (pos, old, new)):
+        if (old, new) == (E, None):
+            # en-passant is possible on next semimove
+            self.enpassant = (pos, self.semimoveCount+1)
+        elif (old, new) == (None, E):
+            # reverse-hunk for en-passant
+            # FIXME: check the state of semimoveCount
+            if self.enpassant_possible(pos):
+                # ok, en-passant is possible on this move
+                self.enpassant = None
+            else:
+                raise "(reverse) hunk failed: no en-passant possible now"
+        else:
+            # perform a sanity check
+            if(old != self.getLoc(pos) or new == None):
+                raise "hunk failed"
+            self.locs[pos] = new
+        
+
     def applyPatch(self, patch, rev=False):
         """Applies a patch (a list of hunks) to the current position.
 A single hunk is a triple: location, a piece a this location to be removed
@@ -154,18 +215,13 @@ with history.
 """
         if rev:
             for (pos, old, new) in reverse(patch):
-                # perform a sanity check
-                if(new != self.getLoc(pos)):
-                    raise "hunk failed"
-                self.locs[pos] = old
+                self.applyHunk((pos, new, old))
         else:
-            for (pos, old, new) in patch:
-                # perform a sanity check
-                if(old != self.getLoc(pos)):
-                    raise "hunk failed"
-                self.locs[pos] = new
+            for hunk in patch:
+                self.applyHunk(hunk)
     
     def makeMove(self, patch):
+        """tries to apply the patch and alters the history"""
         self.applyPatch(patch)
         # clear history from the future
         self.history[self.semimoveCount:] = []
@@ -185,12 +241,29 @@ with history.
         self.applyPatch(self.history[self.semimoveCount])
         self.semimoveCount = self.semimoveCount+1
 
+    def iterMove(self, wsym, wsrc, wdst, options):
+        for dst in wdst:
+            for sym in wsym:
+                for src in wsrc:
+                    try:
+                        patch = self.move(sym, wsrc, wdst, options)
+                    except IllegalMove:
+                        continue
+                    self.makeMove(patch)
+                    # check for checks
+                    if self.check_last_move():
+                        yield patch
+                    # FIXME: check for mate/stalemate
+                    self.undo()
+
     # FIXME: name: it returns a patch (appliable for makeMove())
     def move(self, sym, src, dst, options):
-        """(parsed) move is:
+        """a (parsed) move is:
         (piece, src, dst, options), where dict options may contain the following keys:
-        promote (None, R, Q, B, N), capture (True, False), hybrid (True, False), check (None, check, mate).
+        promote (None, R, Q, B, N), capture (True, False), hybrid, i.e. 'going to hybrid' (True, False),
+        check (None, check, mate).
         all keys except 'promote' may be ignored"""
+        
         src_piece = self.locs[src]
         if src_piece == E:
             raise IllegalMove, ("source position %s is empty" % str(src))
