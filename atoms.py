@@ -4,13 +4,21 @@ for pieces colors and locations.  There also defined a useful class 'Immutable'.
 """
 
 __id__ = "$Id$"
-__all__ = ["Immutable", "Color", "white", "black", "Loc", "AffLoc"]
+__all__ = ["Immutable", "Color", "white", "black", "Loc", "AffLoc", "invalid_init"]
+
+def invalid_init(self, *args):
+    raise TypeError, ("it is forbidden to create '%s' instances" % self.__class__.__name__)
+
 
 class Immutable(object):
+    """
+    Immutable is a base class for immutable objects.  Any subclasses should define their
+    own '__slots__' to keep all (immutable!) data there.
+    """
+    
     __slots__ = ()
 
-    def __init__(self, *args):
-        raise TypeError, ("it is forbidden to create '%s' instances" % self.__class__.__name__)
+    __init__ = invalid_init
     
     def __setattr__(self, name, value):
         raise TypeError, "readonly attribute"

@@ -11,8 +11,6 @@ from atoms import *
 class IllegalMove(Exception):
     pass
 
-AbstractMethodError = Exception, "an abstract method called"
-
 def fraise(exc, msg=""):
     if msg == "":
         def f(x): raise exc
@@ -22,6 +20,8 @@ def fraise(exc, msg=""):
 
 def fconst(v):
     return lambda x: v
+
+fconst_None = fconst(None)
 
 def fiter(*fs):
     """
@@ -33,30 +33,6 @@ def fiter(*fs):
             # ignore void results
             if r != None: yield r
     return lambda x: [y for y in g(x)]
-
-def finsert(F, *fs):
-    """
-    argumets:
-    let F returns a list, each of fs returns some value,
-    then result is some conjuction of the value and the list.
-    All of fs are applied _before_ F
-    """
-    def g(x):
-        res = fiter(*fs)(x)
-        res.extend(F(x))
-        return res
-    return g
-
-def fappend(F, *fs):
-    """
-    Nearly the same as finsert(), but appends results of fs to the result of F.
-    All of fs are applied _after_ F    
-    """
-    def g(x):
-        res = F(x)
-        res.extend(fiter(*fs)(x))
-        return res
-    return g
 
 def myassert(v, exc, msg=""):
     if not v:
@@ -92,9 +68,6 @@ class Piece(Immutable):
     def __repr__(self):
         return self.col.showShort() + self.sym
 
-    def isReachable(self, src, dst):
-        raise AbstractMethodError
-
     def leave(self, other):
         """
         generic leave() method suitable for most pieces
@@ -116,6 +89,12 @@ class Piece(Immutable):
         else:
             raise IllegalMove, ("%s is not hybridable" % self.__class__.__name__)
 
+    def reach(self, src, dst):
+        """
+        all subclasses should have reach() method which returns None or raises IllegalMove
+        """
+        raise Exception, "an abstract method called"
+
     def fjoin(self, src):
         return lambda board: (src, self.join(board[src]))
 
@@ -129,22 +108,14 @@ class Piece(Immutable):
     def freach(self, src, dst):
         return lambda board: self.reach(board, src, dst)
 
-    def access(self, src, dst, options={}):
-        """
-        'leave' and 'join' hunks are not included
-        generic access() method is suitable for most pieces
-        """
-        return fiter(lambda b: myassert(self.isReachable(src, dst),
-                                        IllegalMove, ("invalid %s move" % self.__class__.__name__)))
-
     def move(self, src, dst, options={}):
         """
-        'leave' and 'join' hunk included
+        generic move() method is suitable for most pieces
         """
-        return fappend(finsert(self.access(src, dst, options),
-                               self.fturn(),
-                               self.fleave(src)),
-                       self.fjoin(dst))
+        return fiter(self.fturn(),
+                     self.fleave(src),
+                     self.reach(src, dst),
+                     self.fjoin(dst))
 
     def show(self):
         """
@@ -200,12 +171,15 @@ class AtomicPiece(Piece):
 class KingPiece(AtomicPiece):
     symbol = 'K'
 
-    def isReachable(self, src, dst):
+    def reach(self, src, dst):
         x, y = (dst-src)()
         x = abs(x)
-        if   x == 0: return abs(y) == 1
-        elif x == 1: return abs(y) <= 1
-        else: return False
+        if   x == 0:
+            if abs(y) == 1: return fconst_None
+        elif x == 1:
+            if abs(y) <= 1: return fconst_None
+
+        return fraise(IllegalMove, "invalid king move")
 
 class PawnPiece(AtomicPiece):
     symbol = 'P'
@@ -224,7 +198,7 @@ class PawnPiece(AtomicPiece):
             do_promote = 7 == dst.y
             fwd = AffLoc(0, 1)
 
-        fhunks = [self.fturn()]
+        fhunks = [self.fturn(), self.fleave(src)]
         
         if x == 0:
             # non-capture move
@@ -281,16 +255,14 @@ class PawnPiece(AtomicPiece):
             raise IllegalMove, "invalid pawn's capture move"
         return f
 
-class RangedPiece:
+class RangedPiece(object):
     """
     common class for ranged pieces: Rook and Bishop
     """
-    def access(self, src, dst, options={}):
-        """
-        access for all ranged pieces
-        """
-        return fiter(self.freach(src, dst))
 
+    def reach(self, src, dst):
+        return lambda board: self.reach0(board, src, dst)
+    
 class PrimePiece(Piece):
     symbols = tuple('RBNQ')
 
@@ -342,7 +314,7 @@ class PrimePiece(Piece):
 class RookPiece(RangedPiece, PrimePiece):
     symbol = 'R'
 
-    def reach(self, board, src, dst):
+    def reach0(self, board, src, dst):
         "returns nothing or raises IllegalMove"
         x, y = (dst-src)()
         if x == 0:
@@ -362,7 +334,7 @@ class RookPiece(RangedPiece, PrimePiece):
 class BishopPiece(RangedPiece, PrimePiece):
     symbol = 'B'
 
-    def reach(self, board, src, dst):
+    def reach0(self, board, src, dst):
         "returns nothing or raises IllegalMove"
         x, y = (dst-src)()
         
@@ -382,22 +354,28 @@ class BishopPiece(RangedPiece, PrimePiece):
 class KnightPiece(PrimePiece):
     symbol = 'N'
 
-    def isReachable(self, src, dst):
+    def reach(self, src, dst):
         x, y = (dst-src)()
         x, y = abs(x), abs(y)
-        return (x==1 and y==2) or (x==2 and y==1)
+        if (x==1 and y==2) or (x==2 and y==1):
+            return fconst_None
+
+        return fraise(IllegalMove, "invalid knight move")
 
 
 class QueenPiece(PrimePiece):
     """Note, in hybrids the queen moves in the same manner as the king!"""
     symbol = 'Q'
 
-    def isReachable(self, src, dst):
+    def reach(self, src, dst):
         x, y = (dst-src)()
         x = abs(x)
-        if   x == 0: return abs(y) == 1
-        elif x == 1: return abs(y) <= 1
-        else: return False
+        if   x == 0:
+            if abs(y) == 1: return fconst_None
+        elif x == 1:
+            if abs(y) <= 1: return fconst_None
+
+        return fraise(IllegalMove, "invalid queen move")
 
 class HybridPiece(Piece):
     __slots__ = ('sym', 'col', 'p1', 'p2')
@@ -406,23 +384,19 @@ class HybridPiece(Piece):
 
     def ishybrid(self): return True
 
-    def move(self, src, dst, options={}):
+    def reach(self, src, dst):
         def g(board):
             try:
-                patch = self.p1.access(src, dst, options)(board)
+                self.p1.reach(src, dst)(board)
             except IllegalMove, e1:
                 if self.p2 != self.p1:
                     try:
-                        patch = self.p2.access(src, dst, options)(board)
+                        self.p2.reach(src, dst)(board)
                     except IllegalMove, e2:
-                        raise IllegalMove, ("illegal hybrid move: '%s' / '%s'" % (e1, e2))
+                        raise IllegalMove, ("invalid hybrid move: '%s' / '%s'" % (e1, e2))
                 else:
-                    raise IllegalMove, ("illegal hybrid move: '%s'" % e1)
-            return patch
-
-        return fappend(finsert(g, self.fturn(), self.fleave(src)),
-                       self.fjoin(dst))
-        
+                    raise IllegalMove, ("invalid hybrid move: '%s'" % e1)
+        return g
 
     def __init__(self, p1, p2):
         assert isinstance(p1, PrimePiece)

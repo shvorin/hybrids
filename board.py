@@ -223,5 +223,33 @@ with history.
         
 # test suite
 b = Board()
+
+
+defs = {}
+globs = globals()
+prime_pieces = RookPiece, KnightPiece, BishopPiece, QueenPiece
+for col in white, black:
+    c = col.__str__()[0]
+    for cls in prime_pieces:
+        name = c+cls.symbol
+        assert not globs.has_key(name)
+        defs[name] = cls(col)
+
+        for cls2 in prime_pieces:
+            name = c+cls.symbol+cls2.symbol
+            assert not globs.has_key(name)
+            # don't care about redefinitions
+            defs[name] = HybridPiece(cls(col), cls2(col))
+
+    for cls in KingPiece, PawnPiece:
+        name = c+cls.symbol
+        assert not globs.has_key(name)
+        defs[name] = cls(col)
+
+for (name, val) in defs.iteritems():
+    globs[name] = val
+
+del defs, globs, prime_pieces
+
 # print available moves
 # for x in b.iterMove(('*', ), ('*', ) , '*'): print x
