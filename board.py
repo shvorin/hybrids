@@ -48,6 +48,9 @@ for letter, num in zip("abcdefgh", range(8)):
 def scanPos(s):
     return (letters[s[0]], int(s[1])-1)
 
+class IllegalMove(Exception):
+    pass
+
 class Board:
     turn = None
     semimoveCount = 0
@@ -181,16 +184,41 @@ with history.
         self.applyPatch(self.history[self.semimoveCount])
         self.semimoveCount = self.semimoveCount+1
 
+    # FIXME: name: it returns a patch (appliable for makeMove())
+    def move(self, sym, src, dst, options):
+        """(parsed) move is:
+        (piece, src, dst, options), where dict options may contain the following keys:
+        promote (None, R, Q, B, N), capture (True, False), hybrid (True, False), check (None, check, mate).
+        all keys except 'promote' may be ignored"""
+        src_piece = self.locs[src]
+        if src_piece == E:
+            raise IllegalMove, ("source position %s is empty" % str(src))
+        (src_sym, src_col) = src_piece
+        if src_col != self.turn:
+            raise IllegalMove, "attempt to move ememy's piece"
+        
+        movingPiece = pieceObjects[sym]
+        NotImplemented
+        
+
 class Piece:
     def __init__(self, sym, col):
         self.sym = sym
         self.col = col
     
-    def leave(self, board, pos):
-        raise "pure virtual"
+    def leave(self, src):
+        "returns a pos-patch 'the piece leaves position'.  non-hybriding"
+        if src == (self.sym, self.col):
+            return (E, src)
+        else:
+            raise IllegalMove, "no such piece on this position"
     
-    def join(self, board, pos):
-        raise "pure virtual"
+    def join(self, dst):
+        "returns a pos-patch 'the piece joins position'.  non-hybriding"
+        if dst == E or dst[1] != self.col:
+            return (dst, (self.sym, self.col))
+        else:
+            raise IllegalMove, "target position is occupied by a piece of the same color"
     
     def moveto(self, board, src, dst):
         raise "pure virtual"
@@ -210,37 +238,19 @@ class Piece:
         p0 = showPiece[self.sym]
         return (sp*3, sp+p0+sp)
 
-# no hybriding ability
-class BPiece(Piece):
-    def leave(self, board, pos):
-        "returns a pos-patch 'the piece leaves position'"
-        source = board.getLoc(pos)
-        if source == (self.sym, self.col):
-            return (source, E)
-        else:
-            raise "invalid src"
-    
-    def join(self, board, pos):
-        "returns a pos-patch 'the piece joins position'"
-        target = board.getLoc(pos)
-        if target == E or target[1] != self.col:
-            return (target, (self.sym, self.col))
-        else:
-            raise "invalid dst"
 
 # with hybriding ability
 class SPiece(Piece):
     def isHybriding(self):
         return True
     
-    def leave(self, board, pos):
-        "returns a pos-patch 'the piece leaves position'"
-        source = board.getLoc(pos)
-        if source == E:
-            raise "invalid src"
-        (sym, col) = source
+    def leave(self, src):
+        "returns a pos-patch 'the piece leaves position'. hybriding"
+        if src == E:
+            raise IllegalMove, "attempt to move from empty position"
+        (sym, col) = src
         if col != self.col:
-            raise "invalid src"
+            raise IllegalMove, "attempt to move evemy's piece"
         if sym == self.sym:
             rest = E
         elif sym[0] == self.sym:
@@ -248,23 +258,22 @@ class SPiece(Piece):
         elif sym[1] == self.sym:
             rest = sym[0]
         else:
-            raise "invalid src"
+            raise IllegalMove, "no such piece on this position"
         return (source, rest)
     
-    def join(self, board, pos):
-        "returns a pos-patch 'the piece leaves position'"
-        target = board.getLoc(pos)
+    def join(self, dst):
+        "returns a pos-patch 'the piece joins position'. hybriding"
         me = (self.sym, self.col)
-        if target == E:
-            return (target, me)
-        (sym, col) = target
+        if dst == E:
+            return (dst, me)
+        (sym, col) = dst
         if col != self.col:
-            return (target, me)
+            return (dst, me)
         # try to make a new hybrid
         if pieceObjects[sym].isHybridable():
-            return (target, (sort2(sym, self.sym), self.col))
+            return (dst, (sort2(sym, self.sym), self.col))
         else:
-            raise "invalid dst"
+            raise IllegalMove, "non-hybridable piece on the target position"
 
 class Hybrid(Piece):
     def __init__(self, sym, col):
@@ -274,20 +283,18 @@ class Hybrid(Piece):
     def isHybrid(self):
         return True
     
-    def leave(self, board, pos):
+    def leave(self, src):
         "returns a pos-patch 'the piece leaves position'"
-        source = board.getLoc(pos)
-        if source != (self.sym, self.col):
-            raise "invalid src"
-        return (source, E)
+        if src != (self.sym, self.col):
+            raise IllegalMove, "no such hybrid piece on this position"
+        return (src, E)
     
-    def join(self, board, pos):
+    def join(self, dst):
         "returns a pos-patch 'the piece joins position'"
-        target = board.getLoc(pos)
-        if target == E or target[1] != self.col:
+        if dst == E or dst[1] != self.col:
             return (target, (self.sym, self.col))
         else:
-            raise "invalid dst"
+            raise IllegalMove, "target position is occupied"
     
     def show(self):
         """returns a pair like this:
@@ -306,13 +313,13 @@ class Hybrid(Piece):
         return pieceObjects[(sym1, col)].isReachable(src, dst) or \
                (sym1 != sym2 and pieceObjects[(sym2, col)].isReachable(src, dst))
 
-class King(BPiece):
+class King(Piece):
     def isReachable(self, src, dst):
         (x, y) = aff_sub(dst, src)
         if abs(x) == 0: return abs(y) == 1
         else:           return abs(y) <= 1
         
-class Pawn(BPiece):
+class Pawn(Piece):
     def isReachable(self, src, dst):
         (x, y) = aff_sub(dst, src)
         if self.col == black:
@@ -361,11 +368,10 @@ def init_pieceObjects():
 init_pieceObjects()
 
 
+    
+
+
 # test suite
 b = Board()
 b.setup()
 
-def move(s, new):
-    pos = scanPos(s)
-    b.makeMove([(pos, b.getLoc(pos), new)])
-    
