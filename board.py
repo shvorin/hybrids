@@ -17,6 +17,11 @@ showPiece = {K: 'K', P: 'P', R: 'R', Q: 'Q', B: 'B', N: 'N'}
 # forward declaration
 pieceObjects = {}
 
+def color_toStr(col):
+    if col == white: return 'white'
+    elif col == black: return 'black'
+    else: raise ValueError, "not a color"
+
 def sort2((p1, p2)):
     if p1 > p2:
         return (p2, p1)
@@ -41,12 +46,23 @@ def invColor(col):
     if col == black: return white
     else: return black
 
+def alleq(v, xs):
+    for x in xs:
+        if x != v: return False
+    return True
+
+def Const(v):
+    return lambda x: v
+
 letters = {}
 for letter, num in zip("abcdefgh", range(8)):
     letters[letter] = num
 
 def scanPos(s):
     return (letters[s[0]], int(s[1])-1)
+
+def fraise(exceptionClass, v):
+    raise exceptionClass, v
 
 def iterPos(pos):
     if pos == '*':
@@ -108,8 +124,11 @@ class Board:
     def enpassant_possible(self, pos):
         return self.enpassant == (pos, self.semimoveCount)
     
-    def getLoc(self, pos):
+    def __getitem__(self, pos):
         return self.locs[pos]
+
+    def __setitem__(self, pos, v):
+        self.locs[pos] = v
     
     def __str__(self):
         "shows current position in human-readable format"
@@ -125,7 +144,7 @@ class Board:
                 s += extra
                 for x in range(8):
                     s += '|'
-                    loc = self.getLoc((x, y))
+                    loc = self[(x, y)]
                     if loc == E:
                         s += ' '*3
                     else:
@@ -180,13 +199,13 @@ class Board:
         
         for p, poses in self.w_pieces.iteritems():
             for pos in poses:
-                self.locs[pos] = (p, white)
+                self[pos] = (p, white)
         
         for p, poses in self.b_pieces.iteritems():
             for pos in poses:
-                self.locs[pos] = (p, black)
+                self[pos] = (p, black)
 
-    def applyHunk(self, (pos, old, new)):
+    def applyHunk(self, (pos, (old, new))):
         if (old, new) == (E, None):
             # en-passant is possible on next semimove
             self.enpassant = (pos, self.semimoveCount+1)
@@ -200,9 +219,9 @@ class Board:
                 raise "(reverse) hunk failed: no en-passant possible now"
         else:
             # perform a sanity check
-            if(old != self.getLoc(pos) or new == None):
+            if(old != self[pos] or new == None):
                 raise "hunk failed"
-            self.locs[pos] = new
+            self[pos] = new
         
 
     def applyPatch(self, patch, rev=False):
@@ -214,8 +233,8 @@ It should not be called directly, since it alters the board, but does nothing
 with history.
 """
         if rev:
-            for (pos, old, new) in reverse(patch):
-                self.applyHunk((pos, new, old))
+            for (pos, (old, new)) in reverse(patch):
+                self.applyHunk((pos, (new, old)))
         else:
             for hunk in patch:
                 self.applyHunk(hunk)
@@ -264,7 +283,7 @@ with history.
         check (None, check, mate).
         all keys except 'promote' may be ignored"""
         
-        src_piece = self.locs[src]
+        src_piece = self[src]
         if src_piece == E:
             raise IllegalMove, ("source position %s is empty" % str(src))
         (src_sym, src_col) = src_piece
@@ -301,7 +320,7 @@ class Piece:
         "returns True iff dst is reachable from src for some board position"
         raise "pure virtual"
         
-    def isHybriding(self):
+    def isHybridable(self):
         return False
     
     def isHybrid(self):
@@ -315,7 +334,7 @@ class Piece:
 
 # with hybriding ability
 class SPiece(Piece):
-    def isHybriding(self):
+    def isHybridable(self):
         return True
     
     def leave(self, src):
@@ -327,13 +346,16 @@ class SPiece(Piece):
             raise IllegalMove, "attempt to move evemy's piece"
         if sym == self.sym:
             rest = E
-        elif sym[0] == self.sym:
-            rest = sym[1]
-        elif sym[1] == self.sym:
-            rest = sym[0]
         else:
-            raise IllegalMove, "no such piece on this position"
-        return (source, rest)
+            (sym0, sym1) = sym
+            
+            if sym0 == self.sym:
+                rest = sym1
+            elif sym1 == self.sym:
+                rest = sym0
+            else:
+                raise IllegalMove, "no such piece on this position"
+        return (src, rest)
     
     def join(self, dst):
         "returns a pos-patch 'the piece joins position'. hybriding"
@@ -344,8 +366,8 @@ class SPiece(Piece):
         if col != self.col:
             return (dst, me)
         # try to make a new hybrid
-        if pieceObjects[sym].isHybridable():
-            return (dst, (sort2(sym, self.sym), self.col))
+        if pieceObjects[dst].isHybridable():
+            return (dst, (sort2((sym, self.sym)), self.col))
         else:
             raise IllegalMove, "non-hybridable piece on the target position"
 
@@ -410,6 +432,30 @@ class Rook(SPiece):
         if x==0: return y != 0
         else:    return y == 0
 
+    def isReachable0(self, src, dst):
+        (x, y) = aff_sub(dst, src)
+        if x == 0:
+            if y == 0:
+                return Const(False)
+            sign = cmp(y, 0)
+            etest = lambda board: alleq(E, [board[aff_add(src, (0, i))] for i in range(sign, y, sign)])
+        elif y == 0:
+            sign = cmp(x, 0)
+            etest = lambda board: alleq(E, [board[aff_add(src, (i, 0))] for i in range(sign, x, sign)])
+        else:
+            return lambda board: fraise(IllegalMove, "impossible rook move")
+
+        # FIXME: to raise "correct exception" the evaluation order should be changed...
+        def res(board):
+            if board.turn != self.col:
+                raise IllegalMove, ("it's not %s's turn to move" % color_toStr(self.col))
+            if etest(board):
+                return [(src, self.leave(board[src])), (dst, self.join(board[dst]))]
+            else:
+                raise IllegalMove, "rook can't jump over pieces"
+        return res
+        
+
 class Queen(SPiece):
     "Note, in hybrids the queen moves in the same manner as the king!"
     isReachable = King.isReachable
@@ -419,6 +465,15 @@ class Bishop(SPiece):
         (x, y) = aff_sub(dst, src)
         if x==0: return False
         else:    return abs(x) == abs(y)
+
+    def isReachable0(self, src, dst):
+        (x, y) = aff_sub(dst, src)
+        a = abs(y)
+        if a == 0 or a != abs(x): return Const(False)
+        sx = cmp(x, 0)
+        sy = cmp(y, 0)
+        return NotImplemented
+        #        return lambda board: alleq(E, [board[aff_add(src, (sx*i, sy*i))] for i in range(1, a)])
 
 class Knight(SPiece):
     def isReachable(self, src, dst):
