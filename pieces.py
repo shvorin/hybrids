@@ -222,9 +222,10 @@ class PawnPiece(AtomicPiece):
                 # double move
                 if not untouched:
                     return fraise(IllegalMove, "cannot make double move")
-                fhunks.append(lambda board: myassert(board[src+fwd] == None,
+                nextfld = src+fwd
+                fhunks.append(lambda board: myassert(board[nextfld] == None,
                                                      IllegalMove, "this pawn is blocked (case double)"))
-                # FIXME: leave "en-passant allowed" hunk here
+                fhunks.append(lambda board: (nextfld, (None, 'enpassant')))
             elif y == 1:
                 # simple move
                 fhunks.append(lambda board: myassert(board[dst] == None,
@@ -267,7 +268,17 @@ class PawnPiece(AtomicPiece):
             if target != None and target.col != self.col:
                 # do not generate a hunk here, it will be done later
                 return None
-            # FIXME: check en-passant
+            if board.enpassant_possible(dst):
+                # remove enemy pawn
+                # FIXME: extra checks...
+                if self.col == white:
+                    target_loc = dst+AffLoc(0,-1)
+                else:
+                    target_loc = dst+AffLoc(0,1)
+                target = board[target_loc]
+                # requre target is enemy pawn
+                assert target.col != self.col and target.__class__ == self.__class__
+                return (target_loc, (target, None))
             raise IllegalMove, "invalid pawn's capture move"
         return f
 

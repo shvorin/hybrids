@@ -147,10 +147,21 @@ class Board:
                 self[(x, y)] = None
         
     def applyHunk(self, loc, (old, new)):
-        # perform a sanity check
-        if(old != self[loc]):
-            raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
-        self[loc] = new
+        # check for special (en-passant availability) cases
+        if new == 'enpassant' and old == None:
+            # next turn en-passant is possible
+            self.enpassant = (loc, self.semimoveCount+1)
+        elif old == 'enpassant' and new == None:
+            # obviously, a this is rev-hunk
+            if not self.enpassant_possible(loc):
+                raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
+            self.enpassant = None
+        else:
+            assert old != 'enpassant' and new != 'enpassant'
+            # perform a sanity check
+            if(old != self[loc]):
+                raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
+            self[loc] = new
         
 
     def applyPatch(self, patch, rev=False):
