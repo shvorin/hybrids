@@ -35,7 +35,7 @@ class Piece(Immutable):
             assert arg2 != None
             assert sym in self.__class__.symbols
 
-        self.init_instance(sym=self.__class__.symbol, col=col)
+        self.init_instance(sym=sym, col=col)
             
 
     # FIXME: is it OK to use __repr__(), not just __str__() ?
