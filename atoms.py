@@ -1,12 +1,10 @@
 __Id__ = "$Id$"
 
-import new
-
 class Immutable(object):
     __slots__ = ()
 
     def __init__(self, *args):
-        raise TypeError, "cannot create 'Immutable' instances, this is an abstract class"
+        raise TypeError, ("it is forbidden to create '%s' instances" % self.__class__.__name__)
     
     def __setattr__(self, name, value):
         raise TypeError, "readonly attribute"
@@ -22,43 +20,56 @@ class Immutable(object):
 
     def __call__(self):
         return tuple(map((lambda name: object.__getattribute__(self, name)), self.__slots__))
- 
+
+    def init_instance(self, **slots):
+        """
+        initializes all __slots__ fields of the instance;
+        this should be called in '__init__' method (or any other "creation" method) of any subclass
+        """
+        for name in self.__class__.__slots__:
+            try:
+                object.__setattr__(self, name, slots[name])
+            except KeyError:
+                raise ValueError, ("all __slots__ field must be defined, while '%s' is not" % name)
+        # del self.init_instance # no re-initialization allowed
+    
 
 class Color(Immutable):
     __slots__ = ('value', )
     __white = 0
     __black = 1
     
-    def __init__(self, *args):
-        raise TypeError, "cannot create 'Color' instances"
-
     # FIXME: is it OK to use __repr__(), not just __str__() ?
     def __repr__(self):
         if   self.value == Color.__white: return 'white'
         elif self.value == Color.__black: return 'black'
-        else : raise Exception, "oops, unknown color"
+        else : raise ValueError, "oops, unknown color"
 
-
-    # to be deleted
-    def createValues(self):
+    def createValues():
+        """this static method is to be deleted just after instances created"""
         v1 = object.__new__(Color)
-        object.__setattr__(v1, 'value', Color.__white)
+        v1.init_instance(value=Color.__white)
         v2 = object.__new__(Color)
-        object.__setattr__(v2, 'value', Color.__black)
+        v2.init_instance(value=Color.__black)
         return (v1, v2)
+
+    createValues = staticmethod(createValues)
 
     def inv(self):
         if self == white: return black
         else: return white
 
-(white, black) = Color.createValues(object.__new__(Color))
+white, black = Color.createValues()
 del Color.createValues # no more Color values ;)
+# FIXME: it is still allowed to modify __slots__ fields by calling init_instance
+
 
 class Loc(Immutable):
-    __slots__ = (x, y)
+    __slots__ = ('x', 'y')
     
-    __files = 'abcdefgh'
-    __ranks = '12345678'
+    # let files and ranks be public 'static' fields
+    files = 'abcdefgh'
+    ranks = '12345678'
 
     def __init__(self, *args):
         length = len(args)
@@ -69,10 +80,10 @@ class Loc(Immutable):
         else:
             raise ValueError, "wrong # of args"
 
-        if x in list(Loc.__files) and y in list(Loc.__ranks):
+        if x in list(Loc.files) and y in list(Loc.ranks):
             # algebraic notation given
             try:
-                x, y = Loc.__files.index(x), Loc.__ranks.index(y)
+                x, y = Loc.files.index(x), Loc.ranks.index(y)
             except ValueError:
                 raise ValueError, "invalid algebraic notation"
         else:
@@ -80,19 +91,12 @@ class Loc(Immutable):
             if not (x in range(8) and y in range(8)):
                 raise ValueError, "numeric representation is out of range"
         
-        # explicit assignment forbidden
-        self.__dict__['x'] = x
-        self.__dict__['y'] = y
+        self.init_instance(x=x, y=y)
             
 
     # FIXME: is it OK to use __repr__(), not just __str__() ?
     def __repr__(self):
-        return Loc.__files[self.x] + Loc.__ranks[self.y]
+        return Loc.files[self.x] + Loc.ranks[self.y]
     
-#     def __call__(self):
-#         return self.x, self.y
-
     def flip(self):
         return Loc(self.x, 7-self.y)
-    
-del new
