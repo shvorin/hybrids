@@ -114,25 +114,25 @@ class Board:
     def __str__(self):
         "shows current position in human-readable format"
         s = ''
-        s = s + ' | a | b | c | d | e | f | g | h | \n'
-        s = s + '-+---+---+---+---+---+---+---+---+-\n'
+        s += ' | a | b | c | d | e | f | g | h | \n'
+        s += '-+---+---+---+---+---+---+---+---+-\n'
         for y in range(7, -1, -1):
             for i in range(2):
                 if i==1:
                     extra = str(y+1)
                 else:
                     extra = ' '
-                s = s + extra
+                s += extra
                 for x in range(8):
-                    s = s + '|'
+                    s += '|'
                     loc = self.getLoc((x, y))
                     if loc == E:
-                        s = s + ' '*3
+                        s += ' '*3
                     else:
-                        s = s + pieceObjects[loc].show()[i]
-                s = s + '|' + extra + '\n'
-            s = s + '-+---+---+---+---+---+---+---+---+-\n'
-        s = s + ' | a | b | c | d | e | f | g | h | \n'
+                        s += pieceObjects[loc].show()[i]
+                s += '|' + extra + '\n'
+            s += '-+---+---+---+---+---+---+---+---+-\n'
+        s += ' | a | b | c | d | e | f | g | h | \n'
         return s
     
     def setup(self):
@@ -225,7 +225,7 @@ with history.
         self.applyPatch(patch)
         # clear history from the future
         self.history[self.semimoveCount:] = []
-        self.semimoveCount = self.semimoveCount+1
+        self.semimoveCount += 1
         self.turn = invColor(self.turn)
         self.history.append(patch)
     
@@ -239,7 +239,7 @@ with history.
         if len(self.history) == self.semimoveCount:
             raise "redo: it the last position"
         self.applyPatch(self.history[self.semimoveCount])
-        self.semimoveCount = self.semimoveCount+1
+        self.semimoveCount += 1
 
     def iterMove(self, wsym, wsrc, wdst, options):
         for dst in wdst:
