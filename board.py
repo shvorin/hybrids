@@ -59,6 +59,13 @@ class Board:
             return loc
         else:
             return None
+        
+    def enpassantLoc_rev(self):
+        (loc, cnt) = self.enpassant
+        if cnt == self.semimoveCount+1:
+            return loc
+        else:
+            return None
     
     def __getitem__(self, loc):
         return self.locs[Loc(loc)]
@@ -152,24 +159,36 @@ class Board:
         for x in range(8):
             for y in range(2, 6):
                 self[(x, y)] = None
-        
+
     def applyHunk(self, loc, (old, new)):
-        if loc == None:
-            # special case(s)
-            assert type(old) == type(new) == dict
-            if new.has_key('enpassant'):
-                assert old.has_key('enpassant')
-                if old['enpassant'] != self.enpassantLoc():
-                    raise ("special hunk (%s -> %s) failed" % (old, new))
-                self.enpassant = (new['enpassant'], self.semimoveCount+1)
-            else:
-                raise 'applyHunk: unknown special case'
-        else:
+        if loc.__class__ == Loc:
             # perform a sanity check
             if(old != self[loc]):
                 raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
             self[loc] = new
-        
+        # special case(s) follows
+        elif loc == 'enpassant':
+            # sanity check
+            if old != self.enpassantLoc():
+                raise ("special hunk (%s -> %s) failed" % (old, new))
+            self.enpassant = (new, self.semimoveCount+1)
+        else:
+            raise 'applyHunk: unknown special case'
+
+    def applyHunk_rev(self, loc, (old, new)):
+        if loc.__class__ == Loc:
+            # perform a sanity check
+            if(new != self[loc]):
+                raise ("rev hunk (%s: %s -> %s) failed" % (loc, old, new))
+            self[loc] = old
+        # special case(s) follows
+        elif loc == 'enpassant':
+            # sanity check
+            if new != self.enpassantLoc_rev():
+                raise ("special hunk (%s -> %s) failed\ncurrent epLoc %s" % (old, new, self.enpassantLoc()))
+            self.enpassant = (old, self.semimoveCount)
+        else:
+            raise 'applyHunk: unknown special case'
 
     def applyPatch(self, patch, rev=False):
         """Applies a patch (a list of hunks) to the current position.
@@ -179,12 +198,14 @@ and a new piece to be placed at this location.
 It should not be called directly, since it alters the board, but does nothing
 with history.
 """
+        print "applyPatch(rev %s)\nbefore:" % rev, self.semimoveCount, self.enpassant
         if rev:
-            for (loc, (old, new)) in reverse(patch):
-                self.applyHunk(loc, (new, old))
+            for hunk in reverse(patch):
+                self.applyHunk_rev(*hunk)
         else:
             for hunk in patch:
                 self.applyHunk(*hunk)
+        print "after", self.semimoveCount, self.enpassant
     
     def makeMove(self, patch):
         """tries to apply the patch and alters the history"""
@@ -195,23 +216,20 @@ with history.
         if self.kingAttacked(self.turn):
             self.applyPatch(patch, 'rev')
             raise IllegalMove, ("%s king is left under attack" % self.turn)
-        # clear history from the future
-        # FIXME
-        self.history[self.semimoveCount:] = []
         self.semimoveCount += 1
         self.turn = self.turn.inv()
         self.history.append(patch)
     
     def undo(self):
         if self.semimoveCount == 0:
-            raise "undo: it the first position"
-        self.applyPatch(self.history[self.semimoveCount-1], 'rev')
-        self.semimoveCount = self.semimoveCount-1
+            raise "undo: it's the first position"
+        self.semimoveCount -= 1
+        self.applyPatch(self.history[self.semimoveCount], 'rev')
         self.turn = self.turn.inv()
 
     def redo(self):
         if len(self.history) == self.semimoveCount:
-            raise "redo: it the last position"
+            raise "redo: it's the last position"
         self.applyPatch(self.history[self.semimoveCount])
         self.semimoveCount += 1
         self.turn = self.turn.inv()
@@ -222,8 +240,11 @@ with history.
                 for src in Loc.iter(*wsrc):
                     try:
                         patch = piece.move(src, dst, options)(self)
+                        print "\ttrying patch", patch
                         self.makeMove(patch)
+                        print "\tafter makeMove"
                         self.undo()
+                        print "\tafter undo\n"
                         yield patch
                     except IllegalMove:
                         pass
@@ -279,6 +300,9 @@ with history.
 
         # IllegalMove may be raised
         patch = piece.move(src, dst, options)(self)
+        # clear history from the future
+        # FIXME
+        self.history[self.semimoveCount:] = []
         self.makeMove(patch)
 
         # check for check/mate/stalemate after the move
