@@ -1,0 +1,24 @@
+Rules of the 'hybrids' chess variant.
+
+The main idea of this variant is that ordinal pieces may form complex pieces called hybrids.
+
+The following rules describe all the differences between hybrids and ortodox variants:
+
+1  Prime pieces (i.e. Rook, Bishop, Knight, Queen) are able to form so called hybirds.  A prime piece
+A can move to a square occupied by some prime piece B of the same color.  As a result a new hybrid
+piece appears.  The hybrid can move by the same way as A either B does.  A hybrid may be also
+dismissed, any piece it consists of can move by itself.
+
+1.1  Only prime pieces (neither King nor Pawns) can form hybrid.
+
+1.2  Equal pieces can also form a hybrid.
+
+1.3  No more than two prime pieces can form a hybrid.
+
+2  Pawns may be promoted into any prime piece.  (It is forbidded to promote into a hybrid).
+
+3  A Queen moves to any orthogonally or diagonally adjacent space just like King does.  (So it is
+considered as (0,1)- or (1,1)-leaper).
+
+4  Castling is forbidden.
+
