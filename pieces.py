@@ -143,8 +143,9 @@ class Piece(Immutable):
             try:
                 # a pawn may require 'options' argument, so this code is incorrect
                 patch = self.move(src, dst)(board)
-            except IllegalMove:
                 yield patch
+            except IllegalMove:
+                pass
         
     def iter(*args):
         l = len(args)
@@ -170,10 +171,10 @@ class Piece(Immutable):
             if a == '*':
                 for col in cols:
                     # FIXME: use more generic class iterator
-                    for cls in [KingPiece, PawnPiece, RookPiece, BishopPiece, KnightPiece, QueenPiece]:
+                    for cls in atomic_pieces+prime_pieces:
                         yield cls(col)
-                    for cls1 in [RookPiece, BishopPiece, KnightPiece, QueenPiece]:
-                        for cls2 in [RookPiece, BishopPiece, KnightPiece, QueenPiece]:
+                    for cls1 in prime_pieces:
+                        for cls2 in prime_pieces:
                             if cls1 <= cls2:
                                 yield HybridPiece(cls1(col), cls2(col))
             else:
@@ -310,26 +311,38 @@ class PawnPiece(AtomicPiece):
         x, y = (dst-src)()
         return abs(x) == 1 and ((self.col, y) in ((white, 1), (black, -1)))
 
-# FIXME: not implemented
-#     def iterMove(self, board, src):
-#         """
-#         returns an iterator of all possible pawn moves
-#         """
-#         for shift in Pawn.captureMoves(self.col):
-#             try:
-#                 dst = src+shift
-#                 yield self.move(src, ...
-#                                 )(board)
-        
-#         try:
-#             if src.y == Pawn.second(self.col):
-#                 yield self.move(src, ...
-#                                 )(board)
-#             elif src.y == Pawn.seventh(self.col):
-#                 for cls in RookPiece, BishopPiece, KnightPiece, QueenPiece:
-#                     yield self.move(src, dst, {'promote': cls(self.col)})(board)
-#         except IllegalMove:
-#             pass
+    def iterMove(self, board, src):
+        """
+        returns an iterator of all possible pawn moves
+        """
+        # FIXME: too many extra cases are checked if move() is used,
+        # it may lead to error...
+        def iterDst():
+            try:
+                for shift in PawnPiece.captureMoves[self.col]:
+                    yield src+shift
+            except ValueError:
+                # out of range
+                pass
+            yield src + PawnPiece.simpleMove[self.col]
+            if src.y == PawnPiece.secondRank[self.col]:
+                yield src + PawnPiece.doubleMove[self.col]
+
+        if src.y == PawnPiece.seventhRank[self.col]:
+            for dst in iterDst():
+                for cls in RookPiece, BishopPiece, KnightPiece, QueenPiece:
+                    try:
+                        yield self.move(src, dst, {'promote': cls(self.col)})(board)
+                    except IllegalMove:
+                        # do not try other promotions
+                        # FIXME: it is more reilable to say 'pass' instead of 'break'
+                        break
+        else:
+            for dst in iterDst():
+                try:
+                    yield self.move(src, dst)(board)
+                except IllegalMove:
+                    pass
 
 class RangedPiece(object):
     """
@@ -504,3 +517,6 @@ class HybridPiece(Piece):
     
     def ord(self):
         raise TypeError, "ord() not supported for hybrids"
+
+atomic_pieces = PawnPiece, KingPiece
+prime_pieces = RookPiece, BishopPiece, KnightPiece, QueenPiece

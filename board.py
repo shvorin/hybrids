@@ -43,6 +43,11 @@ class Board:
         for x in range(8):
             for y in range(8):
                 self[(x,y)] = None
+
+        # Maps pieces to location lists.
+        # Don't access it directly, it should be updated in applyHunk only
+        self.pieceMap = {}
+        self.clearPieceMap()
     
         # history is a stack of patches
         self.history = []
@@ -140,17 +145,25 @@ class Board:
             
             self.castle_white = self.castle_black = True
         elif variant == 'hybrids':
+            self.clearPieceMap()
+            
             for x, cls in zip(range(8), [RookPiece, KnightPiece, BishopPiece, QueenPiece,
                                          KingPiece, BishopPiece, KnightPiece, RookPiece]):
-                self[(x,0)] = cls(white)
-                self[(x,7)] = cls(black)
+                for col, y in (white, 0), (black, 7):
+                    loc = Loc(x, y)
+                    p = cls(col)
+                    self[loc] = p
+                    self.pieceMap[p].append(loc)
 
             # in hybrids no castling allowed at all
             self.castle_white = self.castle_black = False
             
         for x in range(8):
-            self[(x,1)] = PawnPiece(white)
-            self[(x,6)] = PawnPiece(black)
+            for col, y in (white, 1), (black, 6):
+                loc = Loc(x, y)
+                p = PawnPiece(col)
+                self[loc] = p
+                self.pieceMap[p].append(loc)
 
         for x in range(8):
             for y in range(2, 6):
@@ -162,6 +175,10 @@ class Board:
             if(old != self[loc]):
                 raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
             self[loc] = new
+            if old:
+                self.pieceMap[old].remove(loc)
+            if new:
+                self.pieceMap[new].append(loc)
         # special case(s) follows
         elif loc == 'enpassant':
             # sanity check
@@ -215,19 +232,23 @@ with history.
         self.semimoveCount += 1
         self.turn = self.turn.inv()
 
-    def iterMove(self, wpiece, wsrc, wdst, options={}):
-        for dst in Loc.iter(*wdst):
-            for piece in Piece.iter(*wpiece):
-                for src in Loc.iter(*wsrc):
+    def iterMove(self):
+        # FIXME: is it better to check more mobile pieces first?
+        for p in self.pieceMap.iterkeys():
+            # FIXME: do keep white and black apart?
+            if p.col != self.turn:
+                continue
+            for src in self.pieceMap[p]:
+                for patch in p.iterMove(self, src):
                     try:
-                        patch = piece.move(src, dst, options)(self)
+                        # check whether king is under attack
                         self.makeMove(patch)
                         self.undo()
                         yield patch
                     except IllegalMove:
                         pass
                     
-    def kingAttacked(self, myCol):
+    def kingAttacked(self, myCol, patch=None):
         """
         Checks whether our king is under attack (after last move).
         Optional 'patch' is just for efficiency
@@ -236,12 +257,15 @@ with history.
         # FIXME: enhance the position representation to make this search more convenient
         # TODO: use patch
         myKing = KingPiece(myCol)
-        for dst in Loc.iter('*'):
-            if self[dst] == myKing: break
-        # assert self[dst] == myKing # assertion fails if no myKing found on the board
-        # FIXME
-        if self[dst] != myKing: return False
+        try:
+            [dst] = self.pieceMap[myKing]
+        except Exception, e:
+            if e.__class__ == ValueError or e.__class__ == KeyError:
+                raise "no %s king found at the board" % myCol
+            else:
+                raise e
 
+        # TODO: make more efficient search
         for src in Loc.iter('*'):
             piece = self[src]
             if piece and piece.col != myCol:
@@ -253,7 +277,7 @@ with history.
         """
         says whether current position is check/mate/stalemate
         """
-        for x in self.iterMove(('*', ), ('*', ), ('*', )):
+        for x in self.iterMove():
             move_possible = True
             break
         else:
@@ -314,7 +338,16 @@ with history.
             return loc
         else:
             return None
-    
+
+    def clearPieceMap(self):
+        for col in black, white:
+            for cls in atomic_pieces+prime_pieces:
+                self.pieceMap[cls(col)] = []
+
+            for cls1 in prime_pieces:
+                for cls2 in prime_pieces:
+                    # don't care about repetitions
+                    self.pieceMap[HybridPiece(cls1(col), cls2(col))] = []
 
 # test suite
 b = Board()
@@ -322,7 +355,6 @@ b = Board()
 
 defs = {}
 globs = globals()
-prime_pieces = RookPiece, KnightPiece, BishopPiece, QueenPiece
 for col in white, black:
     c = col.__str__()[0]
     for cls in prime_pieces:
@@ -344,7 +376,7 @@ for col in white, black:
 for (name, val) in defs.iteritems():
     globs[name] = val
 
-del defs, globs, prime_pieces
+del defs, globs
 
 # print available moves
 # for x in b.iterMove(('*', ), ('*', ) , '*'): print x

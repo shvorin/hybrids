@@ -269,3 +269,5 @@ class GBoard:
     def redo(self):
         self.board.redo()
         self.drawPosition()
+
+g = GBoard()
