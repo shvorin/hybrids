@@ -47,11 +47,11 @@ def mkFilter(filt):
         else      : return zero
     return hlp
 
-def map(f, parser):
+def pmap(f, parser):
     "classical monadic map"
     return bind(parser, lambda r: unit(f(r)))
 
-def map2(f, (parser1, parser2)):
+def pmap2(f, (parser1, parser2)):
     "monadic map for 2-tupple"
     return bind(parser1, lambda r1: bind(parser2, lambda r2: unit(f(r1, r2))))
 
