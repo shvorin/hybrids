@@ -19,7 +19,7 @@ class Immutable(object):
         raise TypeError, "readonly attribute"
 
     def __cmp__(self, other):
-        return cmp(self(), other())
+        return cmp(self(), other)
 
     def __hash__(self):
         return hash(self())
