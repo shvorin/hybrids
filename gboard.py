@@ -41,7 +41,8 @@ class GBoard:
             for y in range(8):
                 self.boardDrawn[Loc(x,y)] = ()
 
-        self.selectedItems = ()
+        # may be a pair (loc, items_tupple) or None
+        self.selectedItem = None
         
         self.root = Tk()
         if not GBoard.photoimages:
@@ -113,7 +114,7 @@ class GBoard:
             print loc, piece
             if piece == None:
                 print 'mouseDown: empty'
-                self.selectedItems = ()
+                self.selectedItem = None
             elif piece.ishybrid():
                 # check event.y more precisely
                 threshold = (event.y - (7-ycell+1)*self.ysize)
@@ -122,25 +123,33 @@ class GBoard:
                 if threshold < self.ysize:
                     # upper chosen
                     print 'mouseDown: upper'
-                    self.selectedItems = (piece.p1, )
+                    self.selectedItem = (loc, (self.boardDrawn[loc][1], ))
                 elif threshold > 2*self.ysize:
                     # lower chosen
                     print 'mouseDown: lower'
-                    self.selectedItems = (piece.p2, )
+                    self.selectedItem = (loc, (self.boardDrawn[loc][0], ))
                 else:
                     # both chosen
                     print 'mouseDown: both'
-                    self.selectedItems = (piece.p1, piece.p1)
+                    self.selectedItem = (loc, self.boardDrawn[loc])
             else:
                 # not hybrid
                 print 'mouseDown: not hybrid'
-                self.selectedItems = (piece, )
+                self.selectedItem = (loc, self.boardDrawn[loc])
         else:
             print 'mouseDown: out of range'
-            self.selectedItems = ()
+            self.selectedItem = None
                     
     def mouseMove(self, event):
-        pass
+        print self.selectedItem
+        if self.selectedItem:
+            (loc, items) = self.selectedItem
+            x, y = self.centerField(loc)
+            dx, dy = event.x-x, event.y-y
+            print dx, dy
+            for it in items:
+                self.c.move(it, dx, dy)
+                self.c.tkraise(it)
 
     def mouseUp(self, event):
         pass
