@@ -53,7 +53,11 @@ def Const(v):
 #         yield piece
 
 class Board:
-    def __init__(self):
+
+    # supported chess variants
+    variants = ('ortodox', 'hybrids')
+
+    def __init__(self, variant='hybrids'):
         self.turn = None
         self.semimoveCount = 0
         self.locs = {}
@@ -62,10 +66,20 @@ class Board:
                 self[(x,y)] = None
     
         self.history = []
+
         # en-passant may be None either (loc, semimoveCnt);
         # if this value equals to (loc, self.semimoveCount) then en-passant move over this loc is allowed;
         # for obsolete/non-valid semimoveCnt: (loc, semimoveCnt) is assumed to equal None
         self.enpassant = None
+
+        # whether casting is possible (for 'hybrids' variant it is never possible)
+        self.castle_white = None
+        self.castle_black = None
+
+        # only 2 chess variants are supported: 'ortodox' and 'hybrids'
+        self.variant = None
+
+        self.setup(variant)
 
     def enpassant_possible(self, loc):
         return self.enpassant == (loc, self.semimoveCount)
@@ -100,7 +114,7 @@ class Board:
         s += ' | a | b | c | d | e | f | g | h | \n'
         return s
     
-    def setup(self):
+    def setup(self, variant='hybrids'):
         """
         setups initial position; __str__() will show the following:
 
@@ -132,20 +146,32 @@ class Board:
 -+---+---+---+---+---+---+---+---+-
  | a | b | c | d | e | f | g | h | 
 """
+        if not variant in Board.variants:
+            raise Exception, ("variant '%s' is not supported" % variant)
+
+        self.variant = variant
+        
         self.semimoveCount = 0
         self.turn = white
         self.history = []
         self.enpassant = None
 
-        
+        if variant == 'ortodox':
+            raise "ortodox pieces should be set..."
+            
+            self.castle_white = self.castle_black = True
+        elif variant == 'hybrids':
+            for x, cls in zip(range(8), [RookPiece, KnightPiece, BishopPiece, QueenPiece,
+                                         KingPiece, BishopPiece, KnightPiece, RookPiece]):
+                self[(x,0)] = cls(white)
+                self[(x,7)] = cls(black)
+
+            # in hybrids no castling allowed at all
+            self.castle_white = self.castle_black = False
+            
         for x in range(8):
             self[(x,1)] = PawnPiece(white)
             self[(x,6)] = PawnPiece(black)
-
-        for x, cls in zip(range(8), [RookPiece, KnightPiece, BishopPiece, QueenPiece,
-                                     KingPiece, BishopPiece, KnightPiece, RookPiece]):
-            self[(x,0)] = cls(white)
-            self[(x,7)] = cls(black)
 
         for x in range(8):
             for y in range(2, 6):
@@ -187,12 +213,14 @@ with history.
             raise "undo: it the first position"
         self.applyPatch(self.history[self.semimoveCount-1], rev=True)
         self.semimoveCount = self.semimoveCount-1
+        self.turn = self.turn.inv()
 
     def redo(self):
         if len(self.history) == self.semimoveCount:
             raise "redo: it the last position"
         self.applyPatch(self.history[self.semimoveCount])
         self.semimoveCount += 1
+        self.turn = self.turn.inv()
 
     def iterMove(self, wsym, wsrc, wdst, options):
         for dst in wdst:
@@ -224,5 +252,4 @@ with history.
         
 # test suite
 b = Board()
-b.setup()
 

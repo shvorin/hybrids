@@ -13,6 +13,29 @@ class IllegalMove(Exception):
 
 AbstractMethodError = Exception, "an abstract method called"
 
+def fraise(exc, msg=""):
+    if msg == "":
+        def f(x): raise exc
+    else:
+        def f(x): raise exc, msg
+    return f
+
+def fiter(fs):
+    """
+    takes a list of function; result is a function which returns an iterator
+    """
+    def g(x):
+        for f in fs:
+            r = f(x)
+            # ignore void results
+            if r != None: yield r
+    return lambda x: [y for y in g(x)]
+
+def myassert(v, exc, msg=""):
+    if not v:
+        if msg == "": raise exc
+        else: raise exc, msg
+
 class Piece(Immutable):
     __slots__ = ('sym', 'col')
 
@@ -45,29 +68,31 @@ class Piece(Immutable):
     def isReachable(self, src, dst):
         raise AbstractMethodError
 
-    def leave(self, src, dst):
+    def leave(self, other):
         raise AbstractMethodError
 
-    def join(self, src, dst):
+    def join(self, other):
         raise AbstractMethodError
+
+    def fjoin(self, src):
+        return lambda board: (src, self.join(board[src]))
+
+    def fleave(self, dst):
+        return lambda board: (dst, self.leave(board[dst]))
+
+    def fturn(self):
+        return lambda board: myassert(board.turn == self.col,
+                                      IllegalMove, ("it's not %s's turn to move" % self.col))
 
     def move(self, src, dst, options={}):
         """
         generic move() method is suitable for most pieces
         """
-        def f(brd):
-            #            assert isinstance(brd, board.Board)
-            if brd.turn != self.col:
-                raise IllegalMove, ("it's not %s's turn to move" % self.col)
-            hunk1 = (src, self.leave(brd[src]))
-
-            if not self.isReachable(src, dst):
-                raise IllegalMove, ("invalid %s move" % self.__class__.name)
-
-            hunk2 = (dst, self.join(brd[dst]))
-
-            return [hunk1, hunk2]
-        return f
+        return fiter([self.fturn(),
+                      self.fleave(src),
+                      lambda b: myassert(self.isReachable(src, dst),
+                                         IllegalMove, ("invalid %s move" % self.__class__.__name__)),
+                      self.fjoin(dst)])
 
     def show(self):
         """
@@ -114,40 +139,74 @@ class PawnPiece(AtomicPiece):
 
     def move(self, src, dst, options={}):
         x, y = (dst-src)()
-        assert src.y != 0 and src.y != 7
+        assert 1 <= src.y <= 6
         
         if self.col == black:
             y = -y
-            is_moved = src.y - 6
-            do_promote = dst.y
+            untouched = src.y == 6
+            do_promote = dst.y == 0
+            fwd = AffLoc(0, -1)
         else:
-            is_moved = src.x - 1
-            do_promote = 7 - dst.y
+            untouched = src.y == 1
+            do_promote = 7 == dst.y
+            fwd = AffLoc(0, 1)
 
-        def check_src(board):
-            if board[src] != self: raise IllegalMove, "this is not a pawn"
-
-        checks = [check_src]
+        fhunks = [self.fturn(), self.fleave(src)]
         
         if x == 0:
+            # non-capture move
             if y == 2:
-                def check_double(board):
-                    if not is_moved:
-                        raise IllegalMove, "cannot make double move"
-                    if board[src+AffLoc(0, 1)] != None:
-                        raise IllegalMove, "this pawn is blocked"
-                checks.append[check_double]
-            elif y != 1:
-                return fraise(IllegalMove, "invalid pawn move")
-            def check_simple(board):
-                if board[dst] != None:
-                    raise IllegalMove, "this pawn is blocked"
-            checks.append[check_simple]
+                # double move
+                if not untouched:
+                    return fraise(IllegalMove, "cannot make double move")
+                fhunks.append(lambda board: myassert(board[src+fwd] == None,
+                                                     IllegalMove, "this pawn is blocked (case double)"))
+                # FIXME: leave "en-passant allowed" hunk here
+            elif y == 1:
+                # simple move
+                fhunks.append(lambda board: myassert(board[dst] == None,
+                                                     IllegalMove, "this pawn is blocked (case simple)"))
+            else:
+                return fraise(IllegalMove, "invalid pawn move (case 1)")
+                
         elif abs(x) == 1 and y == 1:
             # capture move
-            pass
+            fhunks.append(self.capture(dst))
         else:
-            return fraise(IllegalMove, "invalid pawn move")
+            return fraise(IllegalMove, "invalid pawn move (case 2)")
+
+        if do_promote:
+            try:
+                newPiece = options['promote']
+                if (isinstance(newPiece, PrimePiece)
+                    and not isinstance(newPiece, HybridPiece)
+                    and newPiece.col == self.col):
+                    pass
+                else:
+                    fraise(IllegalMove, "only prime piece of the same color promotion allowed")
+                # don't care about what dst is occupied by
+                fhunks.append(self.fput(dst, newPiece))
+            except KeyError:
+                return fraise(IllegalMove, "promotion not specified")
+        else:
+            assert not options.has_key('promote')
+            fhunks.append(self.fput(dst, self))
+
+        return fiter(fhunks)
+
+    def fput(self, dst, newPiece):
+        # similar to fjoin(), but does not care about what dst is occupied by
+        return lambda board: (dst, (board[dst], newPiece))
+
+    def capture(self, dst):
+        def f(board):
+            target = board[dst]
+            if target != None and target.col != self.col:
+                # do not generate a hunk here, it will be done later
+                return None
+            # FIXME: check en-passant
+            raise IllegalMove, "invalid pawn's capture move"
+        return f
 
 class RangedPiece:
     """
@@ -255,10 +314,10 @@ class QueenPiece(PrimePiece):
     """Note, in hybrids the queen moves in the same manner as the king!"""
     symbol = 'Q'
 
-    # FIXME: does not work
-    isReachable = KingPiece.isReachable
-    move = KingPiece.move
-
+    def isReachable(self, src, dst):
+        x, y = (dst-src)()
+        if abs(x) == 0: return abs(y) == 1
+        else:           return abs(y) <= 1
 
 class HybridPiece(Piece):
     __slots__ = ('sym', 'col', 'p1', 'p2')
