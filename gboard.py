@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 
 __id__ = "$Id$"
 # __all__ = []
@@ -270,4 +271,10 @@ class GBoard:
         self.board.redo()
         self.drawPosition()
 
-g = GBoard()
+if __name__ == '__main__':
+    try:
+        g = GBoard()
+        g.root.mainloop()
+    except Exception, e:
+        print ("an exception caught:\n%s" % e)
+
