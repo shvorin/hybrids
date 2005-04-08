@@ -129,7 +129,7 @@ class Piece(Immutable):
 
     def show(self):
         """
-        a rectangle 2x3 should be filled by theese chars
+        a rectangle 2x3 should be filled by these chars
         """
         sp = self.col.show()
         return (sp*3, sp+self.sym[0]+sp)
