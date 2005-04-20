@@ -104,7 +104,7 @@ class Board:
  | a | b | c | d | e | f | g | h | 
 -+---+---+---+---+---+---+---+---+-
  |...|...|...|...|...|...|...|...| 
-8|.R.|.N.|.B.|.Q.|.K.|.B.|.N.|.R.|8
+8|.R.|.N.|.B.|.G.|.K.|.B.|.N.|.R.|8
 -+---+---+---+---+---+---+---+---+-
  |...|...|...|...|...|...|...|...| 
 7|.P.|.P.|.P.|.P.|.P.|.P.|.P.|.P.|7
@@ -125,7 +125,7 @@ class Board:
 2| P | P | P | P | P | P | P | P |2
 -+---+---+---+---+---+---+---+---+-
  |   |   |   |   |   |   |   |   | 
-1| R | N | B | Q | K | B | N | R |1
+1| R | N | B | G | K | B | N | R |1
 -+---+---+---+---+---+---+---+---+-
  | a | b | c | d | e | f | g | h | 
 """
@@ -296,7 +296,7 @@ with history.
     def move(self, piece, src, dst, options={}):
         """a (parsed) move is:
         (piece, src, dst, ?options?), where dict options may contain the following keys:
-        promote (None, R, Q, B, N), capture (True, False), hybrid, i.e. 'going to hybrid' (True, False),
+        promote (None, R, G, B, N), capture (True, False), hybrid, i.e. 'going to hybrid' (True, False),
         check (None, 'check', 'mate').
         all keys except 'promote' may be ignored"""
 

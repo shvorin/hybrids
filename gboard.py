@@ -25,8 +25,8 @@ class GBoard:
                                 (bB, 'bishopb.gif'),
                                 (wN, 'knightw.gif'),
                                 (bN, 'knightb.gif'),
-                                (wQ, 'queenw.gif'),
-                                (bQ, 'queenb.gif')):
+                                (wG, 'queenw.gif'),
+                                (bG, 'queenb.gif')):
             GBoard.photoimages[piece] = PhotoImage(file=os.path.join('images', filename))
             
     init_photoimages = staticmethod(init_photoimages)

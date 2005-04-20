@@ -353,7 +353,7 @@ class RangedPiece(object):
         return lambda board: self.reach0(board, src, dst)
     
 class PrimePiece(Piece):
-    symbols = tuple('RBNQ')
+    symbols = tuple('RBNG')
 
     # subclasses should define class field 'symbol'
 
@@ -457,7 +457,7 @@ class KnightPiece(PrimePiece):
 
 class GuardPiece(PrimePiece):
     """Guard moves like a (nonroyal) king"""
-    symbol = 'Q'
+    symbol = 'G'
     ordinal = 4
 
     def reach(self, src, dst):
