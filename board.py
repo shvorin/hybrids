@@ -8,6 +8,7 @@ __Id__ = "$Id$"
 
 from atoms import *
 from pieces import *
+from gamehist import *
 
 # auxillary definitions...
 
@@ -34,9 +35,6 @@ class Board:
         # turn to move: white either black
         self.turn = None
 
-        # semi-move counter
-        self.semimoveCount = 0
-
         # An inner table maps locations to the corresponding pieces (or None if the field is empty).
         # Don't access it directly, use __getitem__, __setitem__ methods instead.
         self.locs = {}
@@ -49,18 +47,17 @@ class Board:
         self.pieceMap = {}
         self.clearPieceMap()
     
-        # history is a stack of patches
-        self.history = []
-        self.historyEnd = 0
-
-        # en-passant state is a pair (loc_or_None, semimoveCnt);
-        # if this value equals to (loc, self.semimoveCount) then en-passant move over this loc is allowed;
-        # for obsolete/non-valid semimoveCnt: (loc, semimoveCnt) is assumed to equal (None, _)
+        # en-passant state is a pair (loc_or_None, ply);
+        # if this value equals to (loc, self.gamehist.currPly) then en-passant move over this loc is allowed;
+        # for obsolete/non-valid ply: (loc, ply) is assumed to equal (None, _)
         self.enpassant = (None, 0)
 
         # whether casting is possible (for 'hybrids' variant it is never possible)
         self.castle_white = None
         self.castle_black = None
+
+        # history is a stack of patches
+        self.gamehist = None
 
         # only 2 chess variants are supported: 'ortodox' and 'hybrids'
         self.variant = None
@@ -134,10 +131,9 @@ class Board:
 
         self.variant = variant
         
-        self.semimoveCount = 0
         self.turn = white
-        self.history = []
-        self.historyEnd = 0
+        self.gamehist = GameHist(Variant=self.variant)
+        self.gamehist.setup()
         self.enpassant = (None, 0)
 
         if variant == 'ortodox':
@@ -212,24 +208,15 @@ with history.
         if self.kingAttacked(self.turn):
             self.applyPatch(patch, 'rev')
             raise IllegalMove, ("%s king is left under attack" % self.turn)
-        self.history[self.semimoveCount:] = [patch]
-        self.semimoveCount += 1
+        self.gamehist.apply(patch)
         self.turn = self.turn.inv()
     
     def undo(self):
-        assert self.semimoveCount >= 0
-        if self.semimoveCount == 0:
-            raise "undo: it's the first position"
-        self.semimoveCount -= 1
-        self.applyPatch(self.history[self.semimoveCount], 'rev')
+        self.applyPatch(self.gamehist.prev(), 'rev')
         self.turn = self.turn.inv()
 
     def redo(self):
-        assert self.semimoveCount <= self.historyEnd
-        if self.semimoveCount == self.historyEnd:
-            raise "redo: it's the last position"
-        self.applyPatch(self.history[self.semimoveCount])
-        self.semimoveCount += 1
+        self.applyPatch(self.gamehist.next())
         self.turn = self.turn.inv()
 
     def iterMove(self):
@@ -303,7 +290,7 @@ with history.
         # IllegalMove may be raised
         patch = piece.move(src, dst, options)(self)
         self.makeMove(patch)
-        self.historyEnd = self.semimoveCount
+        self.gamehist.commit()
 
         # check for check/mate/stalemate after the move
         result = self.detectMate()
@@ -327,14 +314,14 @@ with history.
         """
         returns new en-passant hunk appliable to the current position
         """
-        return ('enpassant', (self.enpassant, (loc, self.semimoveCount+1)))
+        return ('enpassant', (self.enpassant, (loc, self.gamehist.currPly+1)))
 
     def enpassantLoc(self):
         """
         returns phantom location or None if en-passant is impossible now
         """
         (loc, cnt) = self.enpassant
-        if cnt == self.semimoveCount:
+        if cnt == self.gamehist.currPly:
             return loc
         else:
             return None

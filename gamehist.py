@@ -38,26 +38,35 @@ class GameHist:
             raise Exception, ("variant '%s' is not supported" % variant)
         
         self.variant = variant
+        self.setup()
+
+    def setup(self):
         self.history = []
+        # semimove counter
         self.currPly = 0
+        self.lastPly = 0
     
     def next(self):
-        if self.currPly < len(self.history):
+        assert self.currPly <= self.lastPly
+        if self.currPly < self.lastPly:
             self.currPly += 1
             return self.history[self.currPly-1]
-        raise Exception, "at the end"
+        raise Exception, "it's the last position"
     
     def prev(self):
+        assert self.currPly >= 0
         if self.currPly > 0:
             self.currPly -= 1
             return self.history[self.currPly]
-        raise Exception, "at the beginning"
+        raise Exception, "it's the first position"
     
     def apply(self, move):
         "destructively updates the history; the tail is removed"
         self.history[self.currPly:] = [move]
         self.currPly += 1
 
+    def commit(self):
+        self.lastPly = self.currPly
 
 class GameHist_PGN(GameHist):
     """Move_PGN are to kept here."""
