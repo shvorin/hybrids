@@ -104,7 +104,7 @@ class GameHist_PGN(GameHist):
         res = ''
         # required first...
         for tag in GameHist.required_tags:
-            res += GameHist.str_tag(tag, self.tags[tag])
+            res += GameHist_PGN.str_tag(tag, self.tags[tag])
         # ...then optional tags
         for tag in self.tags.keys():
             if not tag in GameHist.required_tags:
