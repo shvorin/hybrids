@@ -4,7 +4,9 @@ for pieces colors and locations.  There also defined a useful class 'Immutable'.
 """
 
 __id__ = "$Id$"
-__all__ = ["Immutable", "Color", "white", "black", "Loc", "AffLoc", "invalid_init"]
+__all__ = ["Immutable", "Color", "white", "black", "Loc", "AffLoc", "WLoc", "invalid_init"]
+
+import types
 
 def invalid_init(self, *args):
     raise TypeError, ("it is forbidden to create '%s' instances" % self.__class__.__name__)
@@ -89,8 +91,10 @@ class Loc(Immutable):
     __slots__ = ('x', 'y')
     
     # let files and ranks be public 'static' fields
-    files = 'abcdefgh'
-    ranks = '12345678'
+    files = list('abcdefgh')
+    ranks = list('12345678')
+    
+    xyrange = range(8)
 
     def __init__(self, *args):
         length = len(args)
@@ -106,7 +110,7 @@ class Loc(Immutable):
         else:
             raise ValueError, "wrong # of args"
 
-        if x in list(Loc.files) and y in list(Loc.ranks):
+        if x in Loc.files and y in Loc.ranks:
             # algebraic notation given
             try:
                 x, y = Loc.files.index(x), Loc.ranks.index(y)
@@ -114,7 +118,7 @@ class Loc(Immutable):
                 raise ValueError, "invalid algebraic notation"
         else:
             # numeric representation given
-            if not (x in range(8) and y in range(8)):
+            if not (x in Loc.xyrange and y in Loc.xyrange):
                 raise ValueError, "numeric representation is out of range"
         
         self.init_instance(x=x, y=y)
@@ -150,8 +154,8 @@ class Loc(Immutable):
             if isinstance(a, Loc):
                 yield a
             elif a == '*':
-                for x in range(8):
-                    for y in range(8):
+                for x in Loc.xyrange:
+                    for y in Loc.xyrange:
                         yield Loc(x, y)
             else:
                 raise ValueError
@@ -162,10 +166,10 @@ class Loc(Immutable):
                     for res in Loc.iter('*'):
                         yield res
                 else:
-                    for x in range(8):
+                    for x in Loc.xyrange:
                         yield Loc(x, y)
             elif y == '*':
-                for y in range(8):
+                for y in Loc.xyrange:
                     yield Loc(x, y)
             else:
                 yield Loc(x, y)
@@ -206,3 +210,93 @@ class AffLoc(Immutable):
 
     def __mul__(self, other):
         return AffLoc(self.x*other, self.y*other)
+
+class WLoc(Immutable):
+    """
+    'wild Loc' may be used to iterate ordinal Locs.
+    Values of x and y may be None which stands for wild value.
+    """
+    __slots__ = ('x', 'y')
+
+    xyrange = Loc.xyrange + [None]
+
+    def __init__(self, *args):
+        """
+        args may be either:
+        Loc, WLoc (copy constructor);
+        single string: 'e1', '*1', 'e*', '**', '*' (a single asterisk is not recommended(?));
+        pair of strings: ('e', '1'), ('*', '1'), ('e', '*'), ('*', '*');
+        pair of (numbers or None): (4, 0), (4, None), (None, 0), (None, None);
+        None
+
+        A wrapped pair like (('e', '1')) may be used.
+        """
+
+        length = len(args)
+        if length == 2:
+            x, y = args
+        elif length == 1:
+            (a, ) = args
+            if a in (None, '*'):
+                self.init_instance(x=None, y=None)
+                return
+            elif isinstance(a, self.__class__) or isinstance(a, Loc):
+                # copy constructor
+                x, y = a.x, a.y
+            else:
+                x, y = a
+        else:
+            raise ValueError, "wrong # of args"
+
+        if x.__class__ is types.StringType and y.__class__ is types.StringType:
+            try:
+                if x == '*':
+                    x = None
+                else:
+                    x = Loc.files.index(x)
+                if y == '*':
+                    y = None
+                else:
+                    y = Loc.ranks.index(y)
+            except ValueError: # raised by index()
+                raise ValueError, "invalid algebraic notation"
+        else:
+            # numeric representation given
+            if not (x in WLoc.xyrange and y in WLoc.xyrange):
+                if x.__class__ is types.IntType and y.__class__ is types.IntType:
+                    raise ValueError, "numeric representation is out of range"
+                else:
+                    raise ValueError, "invalid representation"
+        
+        self.init_instance(x=x, y=y)
+
+    # FIXME: is it OK to use __repr__(), not just __str__() ?
+    def __repr__(self):
+        res = ''
+        if self.x is None:
+            res += '*'
+        else:
+            res += Loc.files[self.x]
+        if self.y is None:
+            res += '*'
+        else:
+            res += Loc.ranks[self.y]
+        return res
+
+    def __iter__(self):
+        """
+        returns an iterator of Locs
+        """
+        if self.x is None:
+            xs = Loc.xyrange
+        else:
+            xs = (self.x, )
+
+        if self.y is None:
+            ys = Loc.xyrange
+        else:
+            ys = (self.y, )
+
+        for x in xs:
+            for y in ys:
+                yield Loc(x,y) # FIXME: don't use standard Loc constructor; it's not effective
