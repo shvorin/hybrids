@@ -234,7 +234,44 @@ with history.
                         yield patch
                     except IllegalMove:
                         pass
-                    
+
+    def witerMove(self, actor, wsrc, wdst, options={}):
+        assert actor is None or isinstance(actor, Piece)
+        assert isinstance(wsrc, WLoc) and isinstance(wdst, WLoc)
+
+        if actor is None:
+            raise "not implemented: moving piece should not be wild"
+
+        assert actor.col == self.turn
+
+        # FIXME: this is workaround of inconvenient representation of pieceMap
+        def iter_actors():
+            yield actor
+            if actor.hybridable():
+                for p in prime_pieces:
+                    yield HybridPiece(actor, p(actor.col))
+
+        # FIXME: have to deepcopy pieceMap (?!)
+        ps = {}
+        for k, v in self.pieceMap.items():
+            ps[k] = []
+            for el in v:
+                ps[k].append(el)
+
+        for p in iter_actors():
+            psp = ps[p]
+            for s in psp:
+                if s in wsrc:
+                    for d in wdst:
+                        try:
+                            patch = actor.move(s, d, options)(self)
+                            self.makeMove(patch)
+                            self.undo()
+                            yield patch
+                        except IllegalMove:
+                            pass
+        
+
     def kingAttacked(self, myCol, patch=None):
         """
         Checks whether our king is under attack (after last move).
@@ -279,7 +316,6 @@ with history.
             if move_possible: return None
             else: return 'stalemate'
 
-    # FIXME: name: it returns a patch (appliable for makeMove())
     def move(self, piece, src, dst, options={}):
         """a (parsed) move is:
         (piece, src, dst, ?options?), where dict options may contain the following keys:
@@ -289,17 +325,24 @@ with history.
 
         # IllegalMove may be raised
         patch = piece.move(src, dst, options)(self)
+        str_SAN = ''
+        try:
+            str_SAN = piece.move_SAN(self, src, dst, options)
+        except IllegalMove:
+            pass
         self.makeMove(patch)
         self.gamehist.commit()
 
         # check for check/mate/stalemate after the move
         result = self.detectMate()
         if result == 'check':
+            str_SAN += '+'
             print 'check'
         elif result == 'stalemate':
             print 'stalemate:\nResult: 1/2:1/2'
             self.gameover = 'draw'
         elif result == 'mate':
+            str_SAN += '#'
             winner = self.turn.inv()
             if winner == white:
                 score = '1:0'
@@ -309,6 +352,7 @@ with history.
             self.gameover = score
         else:
             assert result == None
+        print str_SAN
 
     def enpassantHunk(self, loc):
         """
@@ -335,6 +379,35 @@ with history.
                 for cls2 in prime_pieces:
                     # don't care about repetitions
                     self.pieceMap[HybridPiece(cls1(col), cls2(col))] = []
+
+    def hist_fromPGN(self, gh_pgn):
+        assert gh_pgn.__class__ is GameHist_PGN
+        gh = GameHist()
+        # FIXME: to have copy constructor
+        for name in 'tags', 'variant', 'currPly', 'lastPly':
+            gh.__dict__[name] = gh_pgn.__dict__[name]
+        gh.history = []
+
+        for ply in range(gh.lastPly):
+            gh.history[ply] = XXX # TODO
+        
+        return gh
+
+    def hist_toPGN(self, gh):
+        assert gh.__class__ is GameHist
+        gh_pgn = GameHist_PGN()
+        # FIXME: to have copy constructor
+        for name in 'tags', 'variant', 'currPly', 'lastPly':
+            gh_pgn.__dict__[name] = gh.__dict__[name]
+        gh_pgn.history = []
+
+        for ply in range(gh_pgn.lastPly):
+            patch = gh[ply]
+            
+            gh_pgn.history[ply] = XXX # TODO
+
+        return gh_pgn
+        
 
 # test suite
 b = Board()

@@ -39,6 +39,20 @@ def myassert(v, exc, msg=""):
         if msg == "": raise exc
         else: raise exc, msg
 
+def count_up2(it):
+    """
+    counts elements in iterator up to 2 (i.e. returns 2 iff there at least 2)
+    """
+    cnt = 0
+    for x in it:
+        if cnt >= 2: break
+        cnt += 1
+    return cnt
+
+_illmove = IllegalMove("FIXME: this is because makeMove() (which performs royality check) \
+is called after move_SAN()")
+
+
 class Piece(Immutable):
     __slots__ = ('sym', 'col')
 
@@ -116,6 +130,66 @@ class Piece(Immutable):
                      self.fleave(src),
                      self.reach(src, dst),
                      self.fjoin(dst))
+
+    def move_src_SAN(self, board, src, dst, options={}):
+        """
+        Returns a string representation of the move's src according to SAN.  Note it depends on 'board'.
+        This generic method is suitable for most pieces.
+        """
+
+        # try not to show src at all
+        cnt = count_up2(board.witerMove(self, WLoc(None), WLoc(dst), options))
+        if cnt == 1:
+            return ''
+        elif cnt == 0:
+            raise _illmove
+        else:
+            # try to fix src file
+            cnt = count_up2(board.witerMove(self, WLoc(src.x, None), WLoc(dst), options))
+            if cnt == 1:
+                return str(src)[0]
+            elif cnt == 0:
+                raise _illmove
+            else:
+                # try to fix src rank
+                cnt = count_up2(board.witerMove(self, WLoc(None, src.y), WLoc(dst), options))
+                assert cnt <> 2 # still ambiguilty: impossible
+                if cnt == 0:
+                    raise _illmove
+                return str(src)[1]
+
+    def move_movesign_SAN(self, board, dst):
+        if board[dst] is None:
+            return ''
+        elif board[dst].col == board.turn:
+            return '^'
+        else:
+            return 'x'
+
+    def move_actor_SAN(self):
+        # the only exception is for pawn
+        return self.sym
+
+    def move_dst_SAN(self, dst):
+        return str(dst)
+
+    def move_promotion_SAN(self, options={}):
+        np = options.get('promote')
+        if np is None:
+            return ''
+        else:
+            return '=' + np.sym
+
+    def move_checksign_SAN(self, board, src, dst, options={}):
+        # not implemented!
+        return ''
+
+    def move_SAN(self, board, src, dst, options={}):
+        return self.move_actor_SAN() + self.move_src_SAN(board, src, dst, options) \
+               + self.move_movesign_SAN(board, dst) + self.move_dst_SAN(dst) \
+               + self.move_promotion_SAN(options) + self.move_checksign_SAN(board, src, dst, options={})
+    
+    
 
     def attacks(self, board, src, dst):
         """
@@ -343,6 +417,34 @@ class PawnPiece(AtomicPiece):
                     yield self.move(src, dst)(board)
                 except IllegalMove:
                     pass
+
+    def move_actor_SAN(self):
+        # the only exception is for pawn
+        return ''
+
+    def move_SAN(self, board, src, dst, options={}):
+        if board[dst] is None and not board.enpassantLoc() == dst:
+            res = str(dst)
+        else:
+            # capture
+            cnt = count_up2(board.witerMove(self, WLoc(src.x, None), WLoc(dst.x, None), options))
+            if cnt == 1:
+                res = str(src)[0] + 'x' + str(dst)[0]
+            elif cnt == 0:
+                raise _illmove
+            else:
+                cnt = count_up2(board.witerMove(self, WLoc(src.x, None), WLoc(dst), options))
+                assert cnt <> 2 # still ambiguilty: impossible
+                if cnt == 1:
+                    res = str(src)[0] + 'x' + str(dst)
+                elif cnt == 0:
+                    raise _illmove
+            
+        np = options.get('promote')
+        if np is not None:
+            res += ('=' + np.sym)
+        return res
+            
 
 class RangedPiece(object):
     """
