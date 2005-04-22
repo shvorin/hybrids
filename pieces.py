@@ -349,7 +349,8 @@ class PawnPiece(AtomicPiece):
             except KeyError:
                 return fraise(IllegalMove, "promotion not specified")
         else:
-            assert not options.has_key('promote')
+            # FIXME: asesertion remove since it may fail due to witerMove()
+            # assert not options.has_key('promote')
             fhunks.append(self.fput(dst, self))
 
         return fiter(*fhunks)

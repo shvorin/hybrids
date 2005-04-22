@@ -2,6 +2,7 @@ __id__ = "$Id"
 
 from atoms import *
 from pieces import *
+import time
 
 class GameHist:
     """The game history.  There intended to keep patches (see 'board' module) here."""
@@ -13,11 +14,7 @@ class GameHist:
     required_tags = 'Event', 'Site', 'Date', 'Round', 'White', 'Black', 'Result'
     
     def __init__(self, **tags):
-        try:
-            import time
-            date = time.strftime()
-        except:
-            date = '????.??.??'
+        date = time.strftime('%Y.%m.%d')
         
         # all _requred_ tags
         self.tags = {'Event': '?', 'Site': '?', 'Date': date, 'Round': '-',
@@ -42,6 +39,7 @@ class GameHist:
 
     def setup(self):
         self.history = []
+        self.history_SAN = []
         # semimove counter
         self.currPly = 0
         self.lastPly = 0
@@ -63,13 +61,15 @@ class GameHist:
     def apply(self, move):
         "destructively updates the history; the tail is removed"
         self.history[self.currPly:] = [move]
+#        self.history_SAN[self.currPly:] = [None]
         self.currPly += 1
 
-    def commit(self):
+    def commit(self, str_SAN):
         self.lastPly = self.currPly
+        self.history_SAN[self.currPly:] = [str_SAN]
 
-class GameHist_PGN(GameHist):
-    """Move_PGN are to kept here."""
+    def result(self, res):
+        self.tags['Result'] = res
 
     def load(str):
         # not implemented
@@ -87,10 +87,14 @@ class GameHist_PGN(GameHist):
         res = ''
         res += self.str_tags()
         res += '\n'
-        for ply in range(len(self.history)):
+        for ply in range(len(self.history_SAN)):
             if not ply%2:
                 res += (' ' + str(ply/2+1) + '.')
-            res += (' ' + self.history[ply])
+            if self.history_SAN[ply] is None:
+                # FIXME: this shoud not happen
+                res += ' ???'
+            else:
+                res += (' ' + self.history_SAN[ply])
 
         res += ('\n' + self.tags['Result'] + '\n')
         return res
@@ -104,7 +108,7 @@ class GameHist_PGN(GameHist):
         res = ''
         # required first...
         for tag in GameHist.required_tags:
-            res += GameHist_PGN.str_tag(tag, self.tags[tag])
+            res += GameHist.str_tag(tag, self.tags[tag])
         # ...then optional tags
         for tag in self.tags.keys():
             if not tag in GameHist.required_tags:

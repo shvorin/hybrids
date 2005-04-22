@@ -331,7 +331,6 @@ with history.
         except IllegalMove:
             pass
         self.makeMove(patch)
-        self.gamehist.commit()
 
         # check for check/mate/stalemate after the move
         result = self.detectMate()
@@ -341,17 +340,22 @@ with history.
         elif result == 'stalemate':
             print 'stalemate:\nResult: 1/2:1/2'
             self.gameover = 'draw'
+            self.gamehist.result('1/2-1/2')
         elif result == 'mate':
             str_SAN += '#'
             winner = self.turn.inv()
             if winner == white:
                 score = '1:0'
+                self.gamehist.result('1-0')
             else:
                 score = '0:1'
+                self.gamehist.result('0-1')
             print ('mate, %s win:\nResult: %s' % (winner, score))
             self.gameover = score
         else:
             assert result == None
+            
+        self.gamehist.commit(str_SAN)
         print str_SAN
 
     def enpassantHunk(self, loc):
