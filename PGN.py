@@ -2,9 +2,11 @@ __Id__ = "$Id$"
 
 from simpleparse.common import numbers, strings, comments
 from simpleparse.parser import Parser
+from simpleparse.dispatchprocessor import *
 
-PGN = r'''# note use of raw string when embedding in python code...
+move = r'''# note use of raw string when embedding in python code...
 <space>        := [ \t\n\r]+
+<sspace>        := [ \t]+
 
 File           := [a-h]
 Rank           := [1-8]
@@ -25,7 +27,7 @@ JoinSign       := [^]
 PassSign       := [-]
 >MoveSign<     := PassSign/CaptureSign/JoinSign
 
-Promotion      := Piece
+Promotion      := [=], Prime
 
 # Full Algebraic notation
 
@@ -48,4 +50,12 @@ Move_SAN       := Piece, (((File/Rank), move_aux)/move_aux)
 Move           := Move_SAN/Move_FAN
 '''
 
-parser = Parser(PGN)
+parser = Parser(move)
+
+tags = r'''
+<sspace>       := [ \t]+
+Symbol         := [a-zA-Z0-9_]+
+StringToken    := '"', -('"')*, '"'
+Tag            := ("[", Symbol, sspace, StringToken, "]") !
+>Tags<         := Tag*
+'''
