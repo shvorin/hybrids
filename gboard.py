@@ -278,4 +278,3 @@ if __name__ == '__main__':
         g.root.mainloop()
     except Exception, e:
         print ("an exception caught:\n%s" % e)
-
