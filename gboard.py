@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 __id__ = "$Id$"
+# $URL$
 # __all__ = []
 
 from Tkinter import *
