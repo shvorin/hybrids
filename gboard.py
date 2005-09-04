@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __id__ = "$Id$"
-# $URL$
+# $ URL: http://gh218.keldysh.ru/svn/hybrids/trunk/gboard.py $
 # __all__ = []
 
 from Tkinter import *
