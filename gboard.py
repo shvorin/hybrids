@@ -5,6 +5,7 @@ __id__ = "$Id$"
 # __all__ = []
 
 from Tkinter import *
+from FileDialog import *
 from board import *
 from pieces import *
 import os.path
@@ -38,6 +39,8 @@ class GBoard:
             GBoard.photoimages[piece] = PhotoImage(file=os.path.join('images', filename))
             
     init_photoimages = staticmethod(init_photoimages)
+
+    raw_suffix = '.raw_pgn'
 
 
     def __init__(self, board=None):
@@ -208,6 +211,10 @@ class GBoard:
             print 'All legal moves:'
             for patch in self.board.iterMove():
                 print patch
+        elif key == 'L':
+            self.gload()
+        elif key == 'S':
+            self.gsave()
 
     def keyPress(self, event):
         print 'keyPress: ', event.keysym
@@ -287,6 +294,26 @@ class GBoard:
     def load(self, fname):
         self.board = pickle.load(file(fname))
         self.drawPosition()
+
+    def gload(self):
+        fd = LoadFileDialog(self.root)
+        fname = fd.go(pattern='*'+GBoard.raw_suffix, key='gboard')
+
+        if fname is None:
+            return
+
+        self.load(fname)
+
+    def gsave(self):
+        fd = SaveFileDialog(self.root)
+        fname = fd.go(pattern='*'+GBoard.raw_suffix, key='gboard')
+        
+        if fname is None:
+            return
+
+        # TODO: append raw_suffix if file does not contains it already
+        
+        self.save(fname)
 
 if __name__ == '__main__':
     try:
