@@ -15,7 +15,11 @@ class GameHist:
     
     def __init__(self, **tags):
         date = time.strftime('%Y.%m.%d')
-        
+
+        # history format: a stack of (patch, AN, notes), where `notes' is dict
+        # with the following optional keys: 'comment', 'check', 'result'
+        self.history = []
+
         # all _requred_ tags
         self.tags = {'Event': '?', 'Site': '?', 'Date': date, 'Round': '-',
                      'White': '-', 'Black': '-', 'Result': '*'}
@@ -39,7 +43,6 @@ class GameHist:
 
     def setup(self):
         self.history = []
-        self.history_SAN = []
         # semimove counter
         self.currPly = 0
         self.lastPly = 0
@@ -57,23 +60,19 @@ class GameHist:
             self.currPly -= 1
             return self.history[self.currPly]
         raise Exception, "it's the first position"
-    
-    def apply(self, move):
+
+    def apply(self, patch):
         "destructively updates the history; the tail is removed"
-        self.history[self.currPly:] = [move]
-#        self.history_SAN[self.currPly:] = [None]
+        self.history[self.currPly:] = [(patch, None, {})]
         self.currPly += 1
 
-    def commit(self, str_SAN):
-        self.lastPly = self.currPly
-        self.history_SAN[self.currPly:] = [str_SAN]
-
-    def result(self, res):
-        self.tags['Result'] = res
+    def commit(self, AN, **notes):
+        c = self.lastPly = self.currPly
+        c -= 1
+        self.history[c:] = [(self.history[c][0], AN, notes)]
 
     def load(str):
-        # not implemented
-        pass
+        raise Exception, "Not implemented"
 
     load = staticmethod(load)
 
@@ -87,15 +86,12 @@ class GameHist:
         res = ''
         res += self.str_tags()
         res += '\n'
-        for ply in range(len(self.history_SAN)):
+        for ply in xrange(self.currPly):
             if not ply%2:
                 res += (' ' + str(ply/2+1) + '.')
-            if self.history_SAN[ply] is None:
-                # FIXME: this shoud not happen
-                res += ' ???'
-            else:
-                res += (' ' + self.history_SAN[ply])
-
+                
+            res += (' ' + self.history[ply][1])
+            
         res += ('\n' + self.tags['Result'] + '\n')
         return res
 
@@ -115,6 +111,12 @@ class GameHist:
                 res += GameHist.str_tag(tag, self.tags[tag])
         return res
 
+    def result(self):
+        try:
+            return history[currPly][2].has_key('result')
+        except:
+            # history is too short
+            return None
 
 class Move_PGN:
 

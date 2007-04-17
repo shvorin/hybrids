@@ -9,6 +9,13 @@ from board import *
 from pieces import *
 import os.path
 
+# Try using cPickle if available.
+# try:
+#     import cPickle as pickle
+# except ImportError:
+import pickle
+
+
 def sub2((x1, y1), (x2, y2)):
     return x1-x2, y1-y2
 
@@ -67,10 +74,9 @@ class GBoard:
 
         self.xsize = self.ysize = 48
 
-        self.c = Canvas()
-        self.c.config(background='white',
-                 height=10*self.xsize,
-                 width=10*self.ysize)
+        self.c = Canvas(self.root, background='white',
+                        height=10*self.xsize,
+                        width=10*self.ysize)
         self.c.create_rectangle(self.xsize-1, self.ysize-1, 9*self.xsize+1, 9*self.ysize+1,
                                 fill="white", outline="black")
         for i in range(self.xsize, 9 * self.xsize, 4):
@@ -200,7 +206,7 @@ class GBoard:
             print self.board
         elif key == 'M':
             print 'All legal moves:'
-            for patch in self.board.iterMove(('*', ), ('*', ), ('*', )):
+            for patch in self.board.iterMove():
                 print patch
 
     def keyPress(self, event):
@@ -271,6 +277,15 @@ class GBoard:
 
     def redo(self):
         self.board.redo()
+        self.drawPosition()
+
+# Raw save (instead of PGN)
+    def save(self, fname):
+        pickle.dump(self.board, file(fname, 'w'), pickle.HIGHEST_PROTOCOL)
+
+# Raw load (instead of PGN)
+    def load(self, fname):
+        self.board = pickle.load(file(fname))
         self.drawPosition()
 
 if __name__ == '__main__':

@@ -22,8 +22,9 @@ class Immutable(object):
 
     __init__ = invalid_init
     
-    def __setattr__(self, name, value):
-        raise TypeError, "readonly attribute"
+# FIXME: 'readonly' property temporary(?) disabled to allow loading by pickle
+#     def __setattr__(self, name, value):
+#         raise TypeError, "readonly attribute"
 
     def __delattr__(self, name):
         raise TypeError, "readonly attribute"

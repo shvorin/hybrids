@@ -30,7 +30,6 @@ class Board:
         """
         NB: all instance values should be defined here
         """
-        self.gameover = None
 
         # turn to move: white either black
         self.turn = None
@@ -201,22 +200,28 @@ with history.
     
     def makeMove(self, patch):
         """tries to apply the patch and alters the history"""
-        if self.gameover:
-            raise IllegalMove, ("game already finished (result is %s)" % self.gameover)
+
+        result = self.gamehist.result()
+        
+        if result is not None:
+            raise IllegalMove, ("game already finished (result is %s)" % result)
+        
         self.applyPatch(patch)
         # check if we our king is under attack
         if self.kingAttacked(self.turn):
             self.applyPatch(patch, 'rev')
             raise IllegalMove, ("%s king is left under attack" % self.turn)
+
         self.gamehist.apply(patch)
         self.turn = self.turn.inv()
+
     
     def undo(self):
-        self.applyPatch(self.gamehist.prev(), 'rev')
+        self.applyPatch(self.gamehist.prev()[0], 'rev')
         self.turn = self.turn.inv()
 
     def redo(self):
-        self.applyPatch(self.gamehist.next())
+        self.applyPatch(self.gamehist.next()[0])
         self.turn = self.turn.inv()
 
     def iterMove(self):
@@ -330,33 +335,38 @@ with history.
             str_SAN = piece.move_SAN(self, src, dst, options)
         except IllegalMove:
             pass
+
         self.makeMove(patch)
 
+        notes = {}
+                
         # check for check/mate/stalemate after the move
-        result = self.detectMate()
-        if result == 'check':
+        check = self.detectMate()
+
+        if check == 'check':
             str_SAN += '+'
             print 'check'
-        elif result == 'stalemate':
+        elif check == 'stalemate':
+            notes['result'] = '1/2-1/2'
             print 'stalemate:\nResult: 1/2:1/2'
-            self.gameover = 'draw'
-            self.gamehist.result('1/2-1/2')
-        elif result == 'mate':
+        elif check == 'mate':
             str_SAN += '#'
             winner = self.turn.inv()
             if winner == white:
-                score = '1:0'
-                self.gamehist.result('1-0')
+                notes['result'] = '1-0'
             else:
-                score = '0:1'
-                self.gamehist.result('0-1')
-            print ('mate, %s win:\nResult: %s' % (winner, score))
-            self.gameover = score
+                notes['result'] = '0-1'
+            print ('mate, %s win:\nResult: %s' % (winner, notes['result']))
         else:
-            assert result == None
+            assert check == None
             
-        self.gamehist.commit(str_SAN)
+        if check is not None:
+            notes['check'] = check
+
+        self.gamehist.commit(str_SAN, **notes)
         print str_SAN
+
+
 
     def enpassantHunk(self, loc):
         """
