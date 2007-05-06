@@ -11,6 +11,9 @@ from atoms import *
 class IllegalMove(Exception):
     pass
 
+class UnspecifiedPromotion(IllegalMove):
+    pass
+
 def fraise(exc, msg=""):
     if msg == "":
         def f(x): raise exc
@@ -347,7 +350,7 @@ class PawnPiece(AtomicPiece):
                 # don't care about what dst is occupied by
                 fhunks.append(self.fput(dst, newPiece))
             except KeyError:
-                return fraise(IllegalMove, "promotion not specified")
+                return fraise(UnspecifiedPromotion)
         else:
             # FIXME: asesertion remove since it may fail due to witerMove()
             # assert not options.has_key('promote')

@@ -6,6 +6,7 @@ __id__ = "$Id$"
 
 from Tkinter import *
 from FileDialog import *
+from Tix import *
 from board import *
 from pieces import *
 import os.path
@@ -65,7 +66,8 @@ class GBoard:
         # user's option, may be None or some subclass of PrimePiece
         # the pawn will be promoted to that piece without question
         # TODO: this should be _option_
-        self.alwaysPromote = RookPiece
+        # self.alwaysPromote = RookPiece
+        self.alwaysPromote = None
         
         self.root = Tk()
         if not GBoard.photoimages:
@@ -174,20 +176,23 @@ class GBoard:
             newloc = self.getLoc(event.x, event.y)
             if newloc:
                 try:
-                    # FIXME: a special exception will be raised if options['promote'] requred,
-                    # so it's better to handle this exception
-                    options = {}
-                    if piece.__class__ == PawnPiece:
+                    try:
+                        self.board.move(piece, loc, newloc)
+                    except UnspecifiedPromotion, msg:
+                        # Ok, lets ask user to specify promotion
+                        options = {}
                         col = self.board.turn
-                        z = (col, newloc.y)
-                        if z == (white, 7) or z == (black, 0):
-                            if self.alwaysPromote:
-                                options['promote'] = self.alwaysPromote(col)
+                        if self.alwaysPromote:
+                            options['promote'] = self.alwaysPromote(col)
+                        else:
+                            pd = PromotionDialog(self)
+                            selected = pd.go()
+                            if selected is not None:
+                                options['promote'] = selected(col)
                             else:
-                                print 'not implemented: alwaysPromote is unset'
-                                # IllegalMove to be raised...
-                        
-                    self.board.move(piece, loc, newloc, options)
+                                raise IllegalMove, "cancel promotion"
+
+                        self.board.move(piece, loc, newloc, options)
                 except IllegalMove, msg:
                     print IllegalMove, msg
                     
@@ -314,6 +319,75 @@ class GBoard:
         # TODO: append raw_suffix if file does not contains it already
         
         self.save(fname)
+
+# not implemented yet
+#     def widget_selectPiece(self):
+#         from string import lower
+#         w = Select(self.root, radio=True)
+#         for cls in RookPiece, KnightPiece, BishopPiece, GuardPiece:
+#             piece = cls(self.board.turn)
+#             def handler():
+#                 print 'HANDLER: ' + piece.sym
+#                 del w
+                
+#             w.add(lower(piece.sym), image=GBoard.photoimages[piece], command=handler)
+#         w.pack()
+
+class PromotionDialog:
+    title = "Promotion Dialog"
+
+    key_bindigns = {'G': GuardPiece,
+                    'R': RookPiece,
+                    'B': BishopPiece,
+                    'N': KnightPiece,
+                    '<ESCAPE>': None}
+
+    def keyPress(self, event):
+        from string import upper
+        key = upper(event.keysym)
+
+        print 'PromotionDialog.keyPress: %s' % key
+        
+        if self.key_bindigns.has_key(key):
+            self.quit(self.key_bindigns[key])
+        # otherwise unknown event ignored
+
+    def quit(self, selected):
+        self.selected = selected
+        self.top.destroy()
+        self.master.quit()
+
+    def handler(self, selected):
+        return lambda event=None: self.quit(selected)
+
+    def go(self):
+        self.master.mainloop()          # Exited by self.quit()
+        return self.selected
+        
+    def __init__(self, gboard, title=None):
+        from string import lower
+        
+        if title is None: title = self.title
+        self.master = gboard.root
+
+        self.top = Toplevel(self.master)
+        self.top.title(title)
+        self.top.iconname(title)
+
+        self.sel = Select(self.top, radio=True)
+        for cls in RookPiece, KnightPiece, BishopPiece, GuardPiece:
+            piece = cls(gboard.board.turn)
+                
+            self.sel.add(lower(piece.sym),
+                         image=GBoard.photoimages[piece],
+                         command=self.handler(cls))
+
+        self.sel.pack()
+        self.top.bind('<KeyPress>', self.keyPress)
+
+        self.selected = None
+        self.top.protocol('WM_DELETE_WINDOW', self.handler(None))
+
 
 if __name__ == '__main__':
     try:
