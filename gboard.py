@@ -6,7 +6,6 @@ __id__ = "$Id$"
 
 from Tkinter import *
 from FileDialog import *
-from Tix import *
 from board import *
 from pieces import *
 import os.path
@@ -320,18 +319,6 @@ class GBoard:
         
         self.save(fname)
 
-# not implemented yet
-#     def widget_selectPiece(self):
-#         from string import lower
-#         w = Select(self.root, radio=True)
-#         for cls in RookPiece, KnightPiece, BishopPiece, GuardPiece:
-#             piece = cls(self.board.turn)
-#             def handler():
-#                 print 'HANDLER: ' + piece.sym
-#                 del w
-                
-#             w.add(lower(piece.sym), image=GBoard.photoimages[piece], command=handler)
-#         w.pack()
 
 class PromotionDialog:
     title = "Promotion Dialog"
@@ -374,13 +361,13 @@ class PromotionDialog:
         self.top.title(title)
         self.top.iconname(title)
 
-        self.sel = Select(self.top, radio=True)
+        self.sel = Canvas(self.top)
         for cls in RookPiece, KnightPiece, BishopPiece, GuardPiece:
             piece = cls(gboard.board.turn)
-                
-            self.sel.add(lower(piece.sym),
-                         image=GBoard.photoimages[piece],
-                         command=self.handler(cls))
+
+            Button(self.sel,
+                   image=GBoard.photoimages[piece],
+                   command=self.handler(cls)).pack(side=LEFT)
 
         self.sel.pack()
         self.top.bind('<KeyPress>', self.keyPress)
