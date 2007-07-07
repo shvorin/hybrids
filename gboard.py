@@ -126,7 +126,7 @@ class GBoard:
         self.c.bind('<ButtonPress-1>', self.mouseDown)
         self.c.bind('<B1-Motion>', self.mouseMove)
         self.c.bind('<ButtonRelease-1>', self.mouseUp)
-#         self.c.bind('<DoubleClick-1>', self.doubleClick)
+        self.c.bind('<Double-Button-1>', self.doubleClick)
         self.c.bind('<KeyRelease>', self.keyRelease)
         self.c.bind('<KeyPress>', self.keyPress)
         self.c.focus_set()
