@@ -142,11 +142,15 @@ class Board:
         elif variant == 'hybrids':
             self.clearPieceMap()
             
-            for x, cls in zip(range(8), [RookPiece, KnightPiece, BishopPiece, GuardPiece,
+            for x, cls in zip(range(8), [RookPiece, KnightPiece, BishopPiece, None,
                                          KingPiece, BishopPiece, KnightPiece, RookPiece]):
                 for col, y in (white, 0), (black, 7):
                     loc = Loc(x, y)
-                    p = cls(col)
+                    if cls is None:
+                        p = HybridPiece(VizirPiece(col), FerzPiece(col))
+                    else:
+                        p = cls(col)
+                        
                     self[loc] = p
                     self.pieceMap[p].append(loc)
 
@@ -208,9 +212,9 @@ with history.
         
         self.applyPatch(patch)
         # check if we our king is under attack
-        if self.kingAttacked(self.turn):
-            self.applyPatch(patch, 'rev')
-            raise IllegalMove, ("%s king is left under attack" % self.turn)
+#         if self.kingAttacked(self.turn):
+#             self.applyPatch(patch, 'rev')
+#             raise IllegalMove, ("%s king is left under attack" % self.turn)
 
         self.gamehist.apply(patch)
         self.turn = self.turn.inv()
@@ -341,27 +345,27 @@ with history.
         notes = {}
                 
         # check for check/mate/stalemate after the move
-        check = self.detectMate()
+        # check = self.detectMate()
 
-        if check == 'check':
-            str_SAN += '+'
-            print 'check'
-        elif check == 'stalemate':
-            notes['result'] = '1/2-1/2'
-            print 'stalemate:\nResult: 1/2:1/2'
-        elif check == 'mate':
-            str_SAN += '#'
-            winner = self.turn.inv()
-            if winner == white:
-                notes['result'] = '1-0'
-            else:
-                notes['result'] = '0-1'
-            print ('mate, %s win:\nResult: %s' % (winner, notes['result']))
-        else:
-            assert check == None
+#         if check == 'check':
+#             str_SAN += '+'
+#             print 'check'
+#         elif check == 'stalemate':
+#             notes['result'] = '1/2-1/2'
+#             print 'stalemate:\nResult: 1/2:1/2'
+#         elif check == 'mate':
+#             str_SAN += '#'
+#             winner = self.turn.inv()
+#             if winner == white:
+#                 notes['result'] = '1-0'
+#             else:
+#                 notes['result'] = '0-1'
+#             print ('mate, %s win:\nResult: %s' % (winner, notes['result']))
+#         else:
+#             assert check == None
             
-        if check is not None:
-            notes['check'] = check
+#         if check is not None:
+#             notes['check'] = check
 
         self.gamehist.commit(str_SAN, **notes)
         print str_SAN

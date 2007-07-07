@@ -110,6 +110,7 @@ class Piece(Immutable):
         """
         all subclasses should have reach() method which returns None or raises IllegalMove
         """
+        return fconst_None
         raise Exception, "an abstract method called"
 
     def fjoin(self, src):
@@ -129,10 +130,17 @@ class Piece(Immutable):
         """
         generic move() method is suitable for most pieces
         """
+        if src == dst:
+            return self.invert(src)
+        
         return fiter(self.fturn(),
                      self.fleave(src),
                      self.reach(src, dst),
                      self.fjoin(dst))
+
+    def invert(self, loc):
+        # generally impossible move; let HybridPiece redefine this method
+        raise IllegalMove, "Only some hybrids may invert"
 
     def move_src_SAN(self, board, src, dst, options={}):
         """
@@ -277,6 +285,8 @@ class KingPiece(AtomicPiece):
     ordinal = 0 # the lowest
 
     def reach(self, src, dst):
+        return fconst_None
+        
         x, y = (dst-src)()
         x = abs(x)
         if   x == 0:
@@ -408,7 +418,9 @@ class PawnPiece(AtomicPiece):
 
         if src.y == PawnPiece.seventhRank[self.col]:
             for dst in iterDst():
-                for cls in RookPiece, BishopPiece, KnightPiece, GuardPiece:
+                for cls in (RookPiece, BishopPiece, KnightPiece,
+                            VizirPiece, FerzPiece, RiderPiece
+                            ):
                     try:
                         yield self.move(src, dst, {'promote': cls(self.col)})(board)
                     except IllegalMove:
@@ -456,16 +468,39 @@ class RangedPiece(object):
     """
 
     def reach(self, src, dst):
+        return fconst_None
+
         return lambda board: self.reach0(board, src, dst)
     
 class PrimePiece(Piece):
-    symbols = tuple('RBNG')
+    symbols = tuple('VFNRBI')
 
     # subclasses should define class field 'symbol'
 
     def hybridable(self): return True
 
     def ishybrid(self): return False
+
+    def ranged(cls):
+        return cls in (RookPiece, BishopPiece, RiderPiece)
+
+    ranged = classmethod(ranged)
+    
+    # FIXME: class method
+    def inv(self):
+        return PrimePiece.inv_array[self.__class__](self.col)
+
+    inv_array = {}
+
+    def init_inv_array():
+        for a, b in ((RookPiece, VizirPiece),
+                     (BishopPiece, FerzPiece),
+                     (RiderPiece, KnightPiece),
+                     ):
+            PrimePiece.inv_array[a] = b
+            PrimePiece.inv_array[b] = a
+
+    init_inv_array = staticmethod(init_inv_array)
 
     def __add__(self, other):
         assert isinstance(other, PrimePiece)
@@ -527,6 +562,19 @@ class RookPiece(RangedPiece, PrimePiece):
         else:
             raise IllegalMove, "impossible rook move"
 
+
+class VizirPiece(PrimePiece):
+    symbol = 'V'
+    ordinal = 11
+
+class FerzPiece(PrimePiece):
+    symbol = 'F'
+    ordinal = 12
+
+class RiderPiece(RangedPiece, PrimePiece):
+    symbol = 'I'
+    ordinal = 13
+
 class BishopPiece(RangedPiece, PrimePiece):
     symbol = 'B'
     ordinal = 2
@@ -553,6 +601,8 @@ class KnightPiece(PrimePiece):
     ordinal = 3
 
     def reach(self, src, dst):
+        return fconst_None
+
         x, y = (dst-src)()
         x, y = abs(x), abs(y)
         if (x==1 and y==2) or (x==2 and y==1):
@@ -560,21 +610,6 @@ class KnightPiece(PrimePiece):
 
         return fraise(IllegalMove, "invalid knight move")
 
-
-class GuardPiece(PrimePiece):
-    """Guard moves like a (nonroyal) king"""
-    symbol = 'G'
-    ordinal = 4
-
-    def reach(self, src, dst):
-        x, y = (dst-src)()
-        x = abs(x)
-        if   x == 0:
-            if abs(y) == 1: return fconst_None
-        elif x == 1:
-            if abs(y) <= 1: return fconst_None
-
-        return fraise(IllegalMove, "invalid guard move")
 
 class HybridPiece(Piece):
     __slots__ = ('sym', 'col', 'p1', 'p2')
@@ -596,6 +631,13 @@ class HybridPiece(Piece):
                 else:
                     raise IllegalMove, ("invalid hybrid move: '%s'" % e1)
         return g
+
+    def invert(self, loc):
+        # we use XOR here
+        if self.p1.ranged() ^ self.p2.ranged():
+            return lambda board: [(loc, (self, HybridPiece(self.p1.inv(), self.p2.inv())))]
+        else:
+            raise IllegalMove, ("hybrid not %s invertable" % self)
 
     def __init__(self, p1, p2):
         assert isinstance(p1, PrimePiece)
@@ -625,4 +667,6 @@ class HybridPiece(Piece):
         raise TypeError, "ord() not supported for hybrids"
 
 atomic_pieces = PawnPiece, KingPiece
-prime_pieces = RookPiece, BishopPiece, KnightPiece, GuardPiece
+prime_pieces = RookPiece, BishopPiece, KnightPiece, VizirPiece, FerzPiece, RiderPiece
+PrimePiece.init_inv_array()
+

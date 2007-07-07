@@ -28,14 +28,19 @@ class GBoard:
                                 (bP, 'pawnb.gif'),
                                 (wK, 'kingw.gif'),
                                 (bK, 'kingb.gif'),
+                                (wV, 'r-rookw.gif'),
+                                (bV, 'r-rookb.gif'),
+                                (wF, 'r-bishopw.gif'),
+                                (bF, 'r-bishopb.gif'),
+                                (wI, 'r-knightw.gif'),
+                                (bI, 'r-knightb.gif'),
                                 (wR, 'rookw.gif'),
                                 (bR, 'rookb.gif'),
                                 (wB, 'bishopw.gif'),
                                 (bB, 'bishopb.gif'),
                                 (wN, 'knightw.gif'),
                                 (bN, 'knightb.gif'),
-                                (wG, 'queenw.gif'),
-                                (bG, 'queenb.gif')):
+                                ):
             GBoard.photoimages[piece] = PhotoImage(file=os.path.join('images', filename))
             
     init_photoimages = staticmethod(init_photoimages)
@@ -121,6 +126,7 @@ class GBoard:
         self.c.bind('<ButtonPress-1>', self.mouseDown)
         self.c.bind('<B1-Motion>', self.mouseMove)
         self.c.bind('<ButtonRelease-1>', self.mouseUp)
+#         self.c.bind('<DoubleClick-1>', self.doubleClick)
         self.c.bind('<KeyRelease>', self.keyRelease)
         self.c.bind('<KeyPress>', self.keyPress)
         self.c.focus_set()
@@ -199,6 +205,15 @@ class GBoard:
 
         # FIXME: may be too expensive
         self.drawPosition()
+
+    def doubleClick(self, event):
+        self.selected = None
+        
+        loc = self.getLoc(event.x, event.y)
+        try:
+            self.board.move(self.board[loc], loc, loc) # src == dst means inverting
+        except IllegalMove, msg:
+            print IllegalMove, msg
 
     def keyRelease(self, event):
         from string import upper
@@ -323,10 +338,12 @@ class GBoard:
 class PromotionDialog:
     title = "Promotion Dialog"
 
-    key_bindigns = {'G': GuardPiece,
-                    'R': RookPiece,
+    key_bindigns = {'R': RookPiece,
                     'B': BishopPiece,
                     'N': KnightPiece,
+                    'V': VizirPiece,
+                    'F': FerzPiece,
+                    'I': RiderPiece,
                     '<ESCAPE>': None}
 
     def keyPress(self, event):
@@ -362,7 +379,7 @@ class PromotionDialog:
         self.top.iconname(title)
 
         self.sel = Canvas(self.top)
-        for cls in RookPiece, KnightPiece, BishopPiece, GuardPiece:
+        for cls in RookPiece, KnightPiece, BishopPiece, VizirPiece, FerzPiece, RiderPiece:
             piece = cls(gboard.board.turn)
 
             Button(self.sel,
