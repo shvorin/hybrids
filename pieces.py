@@ -110,7 +110,6 @@ class Piece(Immutable):
         """
         all subclasses should have reach() method which returns None or raises IllegalMove
         """
-        return fconst_None
         raise Exception, "an abstract method called"
 
     def fjoin(self, src):
@@ -285,8 +284,6 @@ class KingPiece(AtomicPiece):
     ordinal = 0 # the lowest
 
     def reach(self, src, dst):
-        return fconst_None
-        
         x, y = (dst-src)()
         x = abs(x)
         if   x == 0:
@@ -468,8 +465,6 @@ class RangedPiece(object):
     """
 
     def reach(self, src, dst):
-        return fconst_None
-
         return lambda board: self.reach0(board, src, dst)
     
 class PrimePiece(Piece):
@@ -567,13 +562,65 @@ class VizirPiece(PrimePiece):
     symbol = 'V'
     ordinal = 11
 
+    def reach(self, src, dst):
+        x, y = (dst-src)()
+        if x == 0 and abs(y) == 1 or y == 0 and abs(x) == 1:
+            return fconst_None
+        else:
+            return fraise(IllegalMove, "invalid vizir move")
+
+
 class FerzPiece(PrimePiece):
     symbol = 'F'
     ordinal = 12
 
+    def reach(self, src, dst):
+        x, y = (dst-src)()
+
+        if abs(x) == 1 and abs(y) == 1:
+            return fconst_None
+        else:
+            return fraise(IllegalMove, "invalid ferz move")
+
+
+class KnightPiece(PrimePiece):
+    symbol = 'N'
+    ordinal = 3
+
+    def reach(self, src, dst):
+        x, y = map(abs, (dst-src)())
+
+        if (x==1 and y==2) or (x==2 and y==1):
+            return fconst_None
+
+        return fraise(IllegalMove, "invalid knight move")
+
+
 class RiderPiece(RangedPiece, PrimePiece):
     symbol = 'I'
     ordinal = 13
+
+    def reach0(self, board, src, dst):
+        x, y = (dst-src)()
+
+        ax, ay = abs(x), abs(y)
+
+# don't check zero moves
+#         if ax == 0:
+#             raise IllegalMove, "invalid rider move (zero move)"
+
+        if ax == 2*ay:
+            dist, step = ay, AffLoc(2*cmp(x, 0), cmp(y, 0))
+        elif ay == 2*ax:
+            dist, step = ax, AffLoc(cmp(x, 0), 2*cmp(y, 0))
+        else:
+            raise IllegalMove, "invalid rider move"
+
+        for i in range(1, dist):
+            loc = src+step*i
+            if board[loc] != None:
+                raise IllegalMove, "Rider can't jump over pieces (%s at %s)" % (board[loc], loc)
+
 
 class BishopPiece(RangedPiece, PrimePiece):
     symbol = 'B'
@@ -594,21 +641,6 @@ class BishopPiece(RangedPiece, PrimePiece):
         for i in range(1, dist):
             if board[src+step*i] != None:
                 raise IllegalMove, "Bishop can't jump over pieces"
-
-
-class KnightPiece(PrimePiece):
-    symbol = 'N'
-    ordinal = 3
-
-    def reach(self, src, dst):
-        return fconst_None
-
-        x, y = (dst-src)()
-        x, y = abs(x), abs(y)
-        if (x==1 and y==2) or (x==2 and y==1):
-            return fconst_None
-
-        return fraise(IllegalMove, "invalid knight move")
 
 
 class HybridPiece(Piece):
