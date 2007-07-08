@@ -307,10 +307,10 @@ class KingPiece(AtomicPiece):
             ):
             if dst.x == 2:
                 # file 'c' -- queen-side;
-                rook, rook_target, empty, unattacked = 'a', 'd', (1, 2, 3), (2, 3)
+                rook, rook_target, empty, unattacked = 'a', 'd', (1, 2, 3), (3, 4)
             elif dst.x == 6:
                 # file 'g' -- king-side
-                rook, rook_target, empty, unattacked = 'h', 'f', (5, 6), (5, )
+                rook, rook_target, empty, unattacked = 'h', 'f', (5, 6), (4, 5)
             else:
                 return fraise(IllegalMove, "invalid king move")
 
