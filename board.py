@@ -51,9 +51,11 @@ class Board:
         # for obsolete/non-valid ply: (loc, ply) is assumed to equal (None, _)
         self.enpassant = (None, 0)
 
-        # whether casting is possible (for 'hybrids' variant it is never possible)
-        self.castle_white = None
-        self.castle_black = None
+        # Castle.  Letters 'e' ('a', 'h') reflect whether king (queen-size rook,
+        # king-side rook) are still untouched.  So castle is possible iff values
+        # are true for 'e' and ('a' or 'h').
+        self.castle = {white: {'e': True, 'a': True, 'h': True},
+                       black: {'e': True, 'a': True, 'h': True}}
 
         # history is a stack of patches
         self.gamehist = None
@@ -135,10 +137,13 @@ class Board:
         self.gamehist.setup()
         self.enpassant = (None, 0)
 
+        # any castle is allowed for both sides
+        for col in white, black:
+            for i in 'a', 'e', 'h':
+                self.castle[col][i] = True
+
         if variant == 'ortodox':
             raise "ortodox pieces should be set..."
-            
-            self.castle_white = self.castle_black = True
         elif variant == 'hybrids':
             self.clearPieceMap()
             
@@ -153,9 +158,6 @@ class Board:
                         
                     self[loc] = p
                     self.pieceMap[p].append(loc)
-
-            # in hybrids no castling allowed at all
-            self.castle_white = self.castle_black = False
             
         for x in range(8):
             for col, y in (white, 1), (black, 6):
@@ -182,10 +184,18 @@ class Board:
         elif loc == 'enpassant':
             # sanity check
             if old != self.enpassant:
-                raise ("special hunk (%s -> %s) failed" % (old, new))
+                raise ("special 'enpassant' hunk (%s -> %s) failed" % (old, new))
             self.enpassant = new
+        elif loc.__class__ == tuple and loc[0] == 'castle':
+            # NB: sly coding of values
+            _, col, idx = loc
+
+            if old != self.castle[col][idx]:
+                raise ("special 'castle' hunk (%s.%s: %s -> %s) failed" % (col, idx, old, new))
+
+            self.castle[col][idx] = new
         else:
-            raise 'applyHunk: unknown special case'
+            raise 'applyHunk: unknown special case: %s'
 
     def applyPatch(self, patch, rev=False):
         """Applies a patch (a list of hunks) to the current position.
@@ -304,6 +314,21 @@ with history.
             if piece and piece.col != myCol:
                 if piece.attacks(self, src, dst):
                     return True
+
+        return False
+
+    def locAttacked(self, loc, col):
+        """
+        Check whether loc is attacked by any piece of the given color.
+        """
+        
+        # TODO: make more efficient search
+        for src in Loc.iter('*'):
+            piece = self[src]
+            if piece and piece.col == col:
+                if piece.attacks(self, src, loc):
+                    return True
+                
         return False
 
     def detectMate(self):
@@ -339,6 +364,10 @@ with history.
             str_SAN = piece.move_SAN(self, src, dst, options)
         except IllegalMove:
             pass
+
+        fix_castle = piece.fix_castle(self, src)
+        if fix_castle is not None:
+            patch.append(fix_castle)
 
         self.makeMove(patch)
 

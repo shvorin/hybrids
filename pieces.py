@@ -33,8 +33,12 @@ def fiter(*fs):
     def g(x):
         for f in fs:
             r = f(x)
+            if r.__class__ == list:
+                for i in r:
+                    yield i
             # ignore void results
-            if r != None: yield r
+            elif r is not None:
+                yield r
     return lambda x: [y for y in g(x)]
 
 def myassert(v, exc, msg=""):
@@ -111,6 +115,12 @@ class Piece(Immutable):
         all subclasses should have reach() method which returns None or raises IllegalMove
         """
         raise Exception, "an abstract method called"
+
+    def fix_castle(self, board, src):
+        """
+        nearly all pieces does not alter castle state
+        """
+        pass
 
     def fjoin(self, src):
         return lambda board: (src, self.join(board[src]))
@@ -291,7 +301,51 @@ class KingPiece(AtomicPiece):
         elif x == 1:
             if abs(y) <= 1: return fconst_None
 
+        if (src.x == 4 # file 'e'
+            and (self.col == white and src.y == 0 or self.col == black and src.y == 7)
+            and src.y == dst.y
+            ):
+            if dst.x == 2:
+                # file 'c' -- queen-side;
+                rook, rook_target, empty, unattacked = 'a', 'd', (1, 2, 3), (2, 3)
+            elif dst.x == 6:
+                # file 'g' -- king-side
+                rook, rook_target, empty, unattacked = 'h', 'f', (5, 6), (5, )
+            else:
+                return fraise(IllegalMove, "invalid king move")
+
+            def g(board):
+                c = board.castle[self.col]
+                if not (c['e'] and c[rook]):
+                    raise IllegalMove, "invalid king move (castle forbidden now (1))"
+                
+                for i in empty:
+                    if board[Loc(i, src.y)] is not None:
+                        print Loc(i, src.y), board[Loc(i, src.y)]
+                        raise IllegalMove, "invalid king move (castle forbidden now (2))"
+
+                # NB: unattacked not include the final position of king -- it will be check later
+                for i in unattacked:
+                    if board.locAttacked(Loc(i, src.y), self.col.inv()):
+                        raise IllegalMove, "invalid king move (castle forbidden now (3))"
+
+                return [
+                    # have to add rook motion
+                    (Loc(rook, Loc.ranks[src.y]), (RookPiece(self.col), None)),
+                    (Loc(rook_target, Loc.ranks[src.y]), (None, RookPiece(self.col))),
+
+                    # castle disabling (NB: only for rook, since for king will
+                    # be disabled by fix_castle
+                    (('castle', self.col, rook), (True, False))
+                    ]
+
+            return g
+
         return fraise(IllegalMove, "invalid king move")
+
+    def fix_castle(self, board, src):
+        if board.castle[self.col]['e']:
+            return ('castle', self.col, 'e'), (True, False)
 
 class PawnPiece(AtomicPiece):
     symbol = 'P'
@@ -557,6 +611,28 @@ class RookPiece(RangedPiece, PrimePiece):
         else:
             raise IllegalMove, "impossible rook move"
 
+    def fix_castle0(self, board, src):
+        """
+        Auxillary boolean function for rook-like fix_castle().
+        """
+        return (
+            # first, check the rank
+            (self.col == white and src.y == 0 or self.col == black and src.y == 7)
+            # second, check the file
+            and (src.x == 0 or src.x == 7)
+            # ...and, this kind of castling is allowed
+            and board.castle[self.col][Loc.files[src.x]]
+            )
+
+    def fix_castle(self, board, src):
+        if self.fix_castle0(board, src):
+            # check whether moving piece is not a part of Rook+Rook hybrid
+            piece = board[src]
+
+            print 'RookPiece.fix_castle',  piece
+            if not piece.ishybrid() or not piece.p1.__class__ == piece.p2.__class__ == RookPiece:
+                return ('castle', self.col, Loc.files[src.x]), (True, False)                
+
 
 class VizirPiece(PrimePiece):
     symbol = 'V'
@@ -671,6 +747,16 @@ class HybridPiece(Piece):
         else:
             raise IllegalMove, ("hybrid not %s invertable" % self)
 
+    def fix_castle(self, board, src):
+        for p in self.p1, self.p2:
+            if p.__class__ == RookPiece:
+                break
+        else:
+            return
+
+        if p.fix_castle0(board, src):
+            return ('castle', self.col, Loc.files[src.x]), (True, False)                
+            
     def __init__(self, p1, p2):
         assert isinstance(p1, PrimePiece)
         assert isinstance(p2, PrimePiece)
