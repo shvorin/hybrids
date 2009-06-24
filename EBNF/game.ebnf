@@ -1,0 +1,13 @@
+# $Id$
+
+<num>          := [1-9], [0-9]*
+<movenum>      := num, '.', '..'?, sspace
+
+>NumberedMove< := movenum?, Move
+<comment>      := '{', -('}')*, '}'
+
+>GameBody0<    := (NumberedMove / comment), (space, GameBody0)?
+
+GameBody       := space?, GameBody0?
+
+Game           := Tags, GameBody, Result?

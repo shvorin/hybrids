@@ -1,0 +1,13 @@
+# $Id$
+
+<space>        := [ \t\n\r]+
+<sspace>       := [ \t]+
+Symbol         := [a-zA-Z0-9_]+
+StringToken    := '"', -('"')*, '"'
+Tag            := ("[", Symbol, sspace, StringToken, "]")
+>Tags0<        := Tag, (space, Tags0)?
+
+>Tags<         := space?, Tags0?
+
+Result0        := '1-0' / '0-1' / '1/2-1/2' / '*'
+Result         := space?, Result0

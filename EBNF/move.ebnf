@@ -1,0 +1,49 @@
+# $Id$
+
+File           := [a-h]
+Rank           := [1-8]
+Loc            := File, Rank
+
+Prime          := [GNBRQ]             # FIXME: Q
+Hybrid         := Prime, Prime
+King           := [K]
+Pawn           := [pP]?
+>Piece<        := Hybrid/Prime/King
+Hybridable     := Prime
+NotHybridable  := Hybrid/King
+
+CheckSign      := [+#]
+
+CaptureSign    := [x:]
+JoinSign       := [^]
+PassSign       := [-]
+>MoveSign<     := PassSign/CaptureSign/JoinSign
+
+Promotion      := [=]?, Prime
+
+# Castle symbol. NB: The upper case letter "O" should be used, not the digit zero.
+<cs>           := [0Oo]
+
+Castle         := (cs, '-', cs) / (cs, '-', cs, '-', cs)
+
+# Full Algebraic notation
+
+>Move_FAN_NotHybridable< := NotHybridable, Loc, (CaptureSign/PassSign)?, Loc
+>Move_FAN_Hybridable<    := Hybridable, Loc, MoveSign?, Loc
+>Move_FAN_Pawn<          := Pawn, Loc, (CaptureSign/PassSign)?, Loc, Promotion?
+
+# strict version
+Move_FAN       := (Move_FAN_NotHybridable/Move_FAN_Hybridable/Move_FAN_Pawn/Castle), CheckSign?
+
+
+# Short Algebraic notation
+
+>Move_SAN_Pawn_capture<  := Pawn, (File, CaptureSign?, Loc)/(File, CaptureSign?, File)
+>Move_SAN_Pawn<          := (Pawn, Loc)/Move_SAN_Pawn_capture, Promotion?
+>Move_SAN_NotHybridable< := NotHybridable, (File/Rank, MoveSign?, Loc) / (MoveSign?, Loc)
+>Move_SAN_Hybridable<    := Hybridable, (File/Rank, (PassSign/CaptureSign)?, Loc) / ((PassSign/CaptureSign)?, Loc)
+
+Move_SAN                 := (Move_SAN_NotHybridable/Move_SAN_Hybridable/Move_SAN_Pawn/Castle), CheckSign?
+
+# Allow any
+Move           := Move_FAN/Move_SAN
