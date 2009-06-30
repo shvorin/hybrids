@@ -1,16 +1,18 @@
 # $Id$
 
-File           := [a-h]
-Rank           := [1-8]
-Loc            := File, Rank
+<LFile>        := [a-h]
+<LRank>        := [1-8]
+File           := LFile
+Rank           := LRank
+Loc            := LFile, LRank
 
 Prime          := [GNBRQ]             # FIXME: Q
 Hybrid         := Prime, Prime
 King           := [K]
 Pawn           := [pP]?
 >Piece<        := Hybrid/Prime/King
-Hybridable     := Prime
-NotHybridable  := Hybrid/King
+>Hybridable<   := Prime
+>NotHybridable< := Hybrid/King
 
 CheckSign      := [+#]
 
@@ -46,4 +48,4 @@ Move_FAN       := (Move_FAN_NotHybridable/Move_FAN_Hybridable/Move_FAN_Pawn/Cast
 Move_SAN                 := (Move_SAN_NotHybridable/Move_SAN_Hybridable/Move_SAN_Pawn/Castle), CheckSign?
 
 # Allow any
-Move           := Move_FAN/Move_SAN
+Move                     := Move_FAN/Move_SAN
