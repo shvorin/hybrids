@@ -85,13 +85,16 @@ class Piece(Immutable):
         self.init_instance(sym=sym, col=col)
 
     def mkPiece(sym, col):
-        if len(sym) == 2:
-            return HybridPiece(mkPiece(sym[0], col), mkPiece(sym[1], col))
-        else:
+        def mkPiece1(sym):
            for cls in atomic_pieces+prime_pieces:
                if sym == cls.symbol:
                    return cls(col)
-           raise ValueError, "unknown piece symbol" % sym
+           raise ValueError, "unknown piece symbol" % sym 
+        
+        if len(sym) == 2:
+            return HybridPiece(mkPiece1(sym[0]), mkPiece1(sym[1]))
+        else:
+           return mkPiece1(sym)
 
     mkPiece = staticmethod(mkPiece)
 
