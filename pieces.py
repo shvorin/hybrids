@@ -83,7 +83,17 @@ class Piece(Immutable):
             assert sym in self.__class__.symbols
 
         self.init_instance(sym=sym, col=col)
-            
+
+    def mkPiece(sym, col):
+        if len(sym) == 2:
+            return HybridPiece(mkPiece(sym[0], col), mkPiece(sym[1], col))
+        else:
+           for cls in atomic_pieces+prime_pieces:
+               if sym == cls.symbol:
+                   return cls(col)
+           raise ValueError, "unknown piece symbol" % sym
+
+    mkPiece = staticmethod(mkPiece)
 
     # FIXME: is it OK to use __repr__(), not just __str__() ?
     def __repr__(self):

@@ -170,6 +170,17 @@ class Board:
             for y in range(2, 6):
                 self[(x, y)] = None
 
+    def applyMove(self, actor, src, dst):
+        raise NotImplemented
+    
+        if isinstance(actor, PawnPiece):
+            pass
+        elif isinstance(actor, HybridPiece):
+            pass
+        else:
+            pass
+
+
     def applyHunk(self, loc, (old, new)):
         if loc.__class__ == Loc:
             # perform a sanity check
