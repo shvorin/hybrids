@@ -170,15 +170,22 @@ class Board:
             for y in range(2, 6):
                 self[(x, y)] = None
 
-    def applyMove(self, actor, src, dst):
+    def applyMove(self, s, actor_tree, src, dst, promotion=None):
+        col = atoms.white # FIXME
+        
+        if actor_tree[0] == 'Pawn':
+            actor = pieces.PawnPiece(col)
+        else:
+            actor = pieces.Piece.mkPiece(s[actor_tree[1]:actor_tree[2]], col)
+        
         raise NotImplemented
     
         if isinstance(actor, PawnPiece):
             pass
-        elif isinstance(actor, HybridPiece):
-            pass
         else:
+            # FIXME: use pieceMap
             pass
+
 
 
     def applyHunk(self, loc, (old, new)):
