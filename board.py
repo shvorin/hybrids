@@ -143,7 +143,7 @@ class Board:
                 self.castle[col][i] = True
 
         if variant == 'ortodox':
-            raise "ortodox pieces should be set..."
+            raise Exception, "ortodox pieces should be set..."
         elif variant == 'hybrids':
             self.clearPieceMap()
             
@@ -171,28 +171,63 @@ class Board:
                 self[(x, y)] = None
 
     def applyMove(self, s, actor_tree, src, dst, promotion=None):
-        col = atoms.white # FIXME
+        col = self.turn
         
         if actor_tree[0] == 'Pawn':
-            actor = pieces.PawnPiece(col)
+            actor = PawnPiece(col)
         else:
-            actor = pieces.Piece.mkPiece(s[actor_tree[1]:actor_tree[2]], col)
-        
-        raise NotImplemented
-    
+            actor = Piece.mkPiece(s[actor_tree[1]:actor_tree[2]], col)
+
+        if src is None:
+            srcMatch = lambda src_: True
+        else:
+            src_repr = s[src[1]:src[2]]
+
+            if src[0] == 'Loc':
+                srcMatch = lambda src_: repr(src_) == src_repr
+            elif src[0] == 'File':
+                srcMatch = lambda src_: Loc.files[src_.x] == src_repr
+            elif src[0] == 'Rank':
+                srcMatch = lambda src_: Loc.ranks[src_.y] == src_repr
+            else:
+                raise Exception, "oops, internal error"
+            
         if isinstance(actor, PawnPiece):
             pass
         else:
-            # FIXME: use pieceMap
-            pass
+            dst_ = Loc(s[dst[1]:dst[2]])
 
+            if actor.hybridable():
+                raise NotImplemented
+            else:
+                def genSrc():
+                    for src_ in self.pieceMap[actor]:
+                        if srcMatch(src_):
+                            try:
+                                actor.reach(src_, dst_)(self)
+                                yield src_
+                            except IllegalMove:
+                                pass
 
+            ssrc_ = [src_ for src_ in genSrc()]
+            
+            if len(ssrc_) == 0:
+                raise Exception, "Illegal move"
+            elif len(ssrc_) > 1:
+                raise Exception, "Ambiguous move"
+
+            src_ = Loc(ssrc_[0])
+
+            print 'applyMove: ', actor, src_, dst_
+
+            self.move(actor, src_, dst_)
+            
 
     def applyHunk(self, loc, (old, new)):
         if loc.__class__ == Loc:
             # perform a sanity check
             if(old != self[loc]):
-                raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
+                raise Exception, ("hunk (%s: %s -> %s) failed" % (loc, old, new))
             self[loc] = new
             if old:
                 self.pieceMap[old].remove(loc)
@@ -202,18 +237,18 @@ class Board:
         elif loc == 'enpassant':
             # sanity check
             if old != self.enpassant:
-                raise ("special 'enpassant' hunk (%s -> %s) failed" % (old, new))
+                raise Exception, ("special 'enpassant' hunk (%s -> %s) failed" % (old, new))
             self.enpassant = new
         elif loc.__class__ == tuple and loc[0] == 'castle':
             # NB: sly coding of values
             _, col, idx = loc
 
             if old != self.castle[col][idx]:
-                raise ("special 'castle' hunk (%s.%s: %s -> %s) failed" % (col, idx, old, new))
+                raise Exception, ("special 'castle' hunk (%s.%s: %s -> %s) failed" % (col, idx, old, new))
 
             self.castle[col][idx] = new
         else:
-            raise 'applyHunk: unknown special case: %s'
+            raise Exception, 'applyHunk: unknown special case: %s'
 
     def applyPatch(self, patch, rev=False):
         """Applies a patch (a list of hunks) to the current position.
@@ -277,7 +312,7 @@ with history.
         assert isinstance(wsrc, WLoc) and isinstance(wdst, WLoc)
 
         if actor is None:
-            raise "not implemented: moving piece should not be wild"
+            raise Exception, "not implemented: moving piece should not be wild"
 
         assert actor.col == self.turn
 
@@ -322,7 +357,7 @@ with history.
             [dst] = self.pieceMap[myKing]
         except Exception, e:
             if e.__class__ == ValueError or e.__class__ == KeyError:
-                raise "no %s king found at the board" % myCol
+                raise Exception, "no %s king found at the board" % myCol
             else:
                 raise e
 
