@@ -6,7 +6,7 @@ File           := LFile
 Rank           := LRank
 Loc            := LFile, LRank
 
-Prime          := [GNBRQ]             # FIXME: Q
+Prime          := [GNBRQVFI]             # FIXME: Q, B
 Hybrid         := Prime, Prime
 King           := [K]
 Pawn           := [pP]?
