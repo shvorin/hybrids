@@ -740,6 +740,9 @@ class HybridPiece(Piece):
     def ishybrid(self): return True
 
     def reach(self, src, dst):
+        if src == dst:
+            return self.invert(src)
+        
         def g(board):
             try:
                 self.p1.reach(src, dst)(board)
@@ -758,7 +761,7 @@ class HybridPiece(Piece):
         if self.p1.ranged() ^ self.p2.ranged():
             return lambda board: [(loc, (self, HybridPiece(self.p1.inv(), self.p2.inv())))]
         else:
-            raise IllegalMove, ("hybrid not %s invertable" % self)
+            fraise(IllegalMove, "hybrid not %s invertable" % self)
 
     def fix_castle(self, board, src):
         for p in self.p1, self.p2:

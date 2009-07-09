@@ -198,7 +198,28 @@ class Board:
             dst_ = Loc(s[dst[1]:dst[2]])
 
             if actor.hybridable():
-                raise NotImplemented
+                def genSrc():
+                    # FIXME too expansive...
+                    for src_ in Loc.iter('*'):
+                        if not srcMatch(src_):
+                            continue
+
+                        piece = self[src_]
+
+                        if piece is None:
+                            continue
+                        
+                        if piece.ishybrid():
+                            if actor not in (piece.p1, piece.p2):
+                                continue
+                        elif actor != piece:
+                            continue
+
+                        try:
+                            actor.reach(src_, dst_)(self)
+                            yield src_
+                        except IllegalMove:
+                            pass
             else:
                 def genSrc():
                     for src_ in self.pieceMap[actor]:
