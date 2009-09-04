@@ -223,6 +223,9 @@ class GBoard:
             self.undo()
         elif key == 'RIGHT':
             self.redo()
+        elif key == 'P':
+            print 'Game history in PGN:'
+            print self.board.gamehist
         elif key == 'D':
             print 'Current position:'
             print self.board
