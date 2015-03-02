@@ -1,5 +1,5 @@
 What is hybrids
----------------
+===============
 
 This is a graphical chessboard (like XBoard) for the newly invented chess variant called 'hybrids'.
 See README.rules to learn rules of this variant.
@@ -17,10 +17,10 @@ Running the hybrids chessboard
 ------------------------------
 
 Run the gboard.py executable in this directory (it may be necessary to chmod +x gboard.py):
-$ ./gboard.py
+`$ ./gboard.py`
 
 either call python explicitly:
-$ python gboard.py
+`$ python gboard.py`
 
 What does it do?
 ----------------
@@ -63,5 +63,7 @@ Contact information
 -------------------
 
 Author:   Artem Shvorin
-Email:    ytse@users.sourceforge.net
-Homepage: http://sourceforge.net/projects/hybrids/
+Email:    art@shvorin.net
+Project homepage:
+ * https://github.com/shvorin/hybrids
+ * (obsolete) http://sourceforge.net/projects/hybrids/
