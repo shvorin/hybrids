@@ -33,7 +33,6 @@ about making moves:
  * to form a hybrid just move a prime piece to another one of the same color (try to move the Rook from a1 to b1 at the initial position)
  * to dismiss a hybrid hit mouse pointer to the upper/lower third of the square where the hybrid is located and start to drag
  * to move the whole hybrid hit mouse pointer to the middle third of the square
- * now pawns are promoted to Rooks (the strongest piece in hybrids) only; I have to fix this and let player to choose
  * en passant is possible :)
  * use left/right arrow keys to undo/redo; 'd' prints the current position in stdout; 'm' prints all legal moves
 
@@ -41,7 +40,6 @@ TODO
 ----
 
  * enable saving/loading games in PGN format
- * let pawns be promoted to any prime piece on player's liking
  * support ortodox variant
  * use more user-friendly way to draw hybrids
  * enable some king of networking: let gboard serves as a server and listens to clients (engines either other human players)
