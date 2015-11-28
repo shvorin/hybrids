@@ -33,8 +33,11 @@ def fiter(*fs):
     def g(x):
         for f in fs:
             r = f(x)
-            # ignore void results
-            if r != None: yield r
+            if r.__class__ is list:
+                for i in r: yield i
+            elif r is not None:
+                # ignore void results
+                yield r
     return lambda x: [y for y in g(x)]
 
 def myassert(v, exc, msg=""):
@@ -54,6 +57,16 @@ def count_up2(it):
 
 _illmove = IllegalMove("FIXME: this is because makeMove() (which performs royality check) \
 is called after move_SAN()")
+
+def dropCastle(col, flank):
+    def f(board):
+        result = []
+        if board.castle[col][flank]:
+            def old(c): c[col][flank] = True
+            def new(c): c[col][flank] = False
+            result.append(("castle", (old, new)))
+        return result
+    return f
 
 
 class Piece(Immutable):
@@ -112,20 +125,36 @@ class Piece(Immutable):
         """
         raise Exception, "an abstract method called"
 
-    def fjoin(self, src):
-        return lambda board: (src, self.join(board[src]))
+    def fjoin(self, dst):
+        return lambda board: (dst, self.join(board[dst]))
 
-    def fleave(self, dst):
-        return lambda board: (dst, self.leave(board[dst]))
+    def fleave(self, src):
+        return lambda board: (src, self.leave(board[src]))
 
     def fturn(self):
         return lambda board: myassert(board.turn == self.col,
                                       IllegalMove, ("it's not %s's turn to move" % self.col))
 
-    def freach(self, src, dst):
-        return lambda board: self.reach(board, src, dst)
+    corners = {white: {queenside: Loc('a1'), kingside: Loc('h1')},
+               black: {queenside: Loc('a8'), kingside: Loc('h8')}}
 
     def move(self, src, dst, options={}):
+        fhunks = [self.move0(src, dst, **options)]
+
+        for flank in (queenside, kingside):
+            if src == Piece.corners[self.col][flank]:
+                do = lambda: fhunks.append(dropCastle(self.col, flank))
+                if self.__class__ is HybridPiece:
+                    do()
+                if self.__class__ is RookPiece:
+                    # FIXME: this is wrong (see game rules)
+                    do()
+            if dst == Piece.corners[self.col.inv()][flank]:
+                fhunks.append(dropCastle(self.col.inv(), flank))
+
+        return fiter(*fhunks)
+
+    def move0(self, src, dst, options={}):
         """
         generic move() method is suitable for most pieces
         """
@@ -276,15 +305,100 @@ class KingPiece(AtomicPiece):
     symbol = 'K'
     ordinal = 0 # the lowest
 
-    def reach(self, src, dst):
-        x, y = (dst-src)()
-        x = abs(x)
-        if   x == 0:
-            if abs(y) == 1: return fconst_None
-        elif x == 1:
-            if abs(y) <= 1: return fconst_None
+    oldKingLoc = {white: Loc(4, 0), black: Loc(4, 7)}
 
-        return fraise(IllegalMove, "invalid king move")
+    # relative to oldKingLoc
+    oldRookAffLoc = {queenside: AffLoc(-4, 0), kingside: AffLoc(3, 0)}
+    #newKingAffLoc = {queenside: AffLoc(-2, 0), kingside: AffLoc(2, 0)}
+    newRookAffLoc = {queenside: AffLoc(-1, 0), kingside: AffLoc(1, 0)}
+
+    requiredEmpty = {queenside: [AffLoc(i,0) for i in (-1,-2,-3)],
+                     kingside: [AffLoc(i,0) for i in (1,2)] }
+    requiredUnattacked = {queenside: [AffLoc(i,0) for i in (0,-1,-2)],
+                          kingside: [AffLoc(i,0) for i in (0,1,2)] }
+    
+    def move0(self, src, dst, options={}):
+        fput = lambda board: (dst, (None, self))
+        fhunks = [self.fturn(), self.fleave(src)]
+
+        for flank in (queenside, kingside):
+            fhunks.append(dropCastle(self.col, flank))
+
+        x, y = (dst-src)()
+
+        # ordinary move or capture
+        if x is 0 and y in (-1, 1) or x in (-1, 1) and y in (-1, 0, 1):
+            fhunks.append(self.fjoin(dst))
+            return fiter(*fhunks)
+            
+        # castle
+        if y is 0 and src == KingPiece.oldKingLoc[self.col]:
+            if x is -2:
+                flank = queenside
+            elif x is 2:
+                flank = kingside
+            else:
+                return fraise(IllegalMove, "invalid king move")
+
+            # 1. check castle is not dropped
+            def checkCastleAllowed(board):
+                if not board.castle[self.col][flank]:
+                    raise IllegalMove, "invalid king move: castle not allowed"
+
+            fhunks.append(checkCastleAllowed)
+            
+            # 2. check empty squares
+            def checkEmpty(board):
+                for al in KingPiece.requiredEmpty[flank]:
+                    l = src+al
+                    if board[l] is not None:
+                         raise IllegalMove, ("invalid king move: castle requires an empty square %s" % l)
+
+            fhunks.append(checkEmpty)
+
+            # 3. check unattacked squares
+            def checkUnattacked(board):
+                for al in KingPiece.requiredUnattacked[flank]:
+                    dloc = src+al
+                    # TODO: make more efficient search
+                    for sloc in Loc.iter('*'):
+                        piece = board[sloc]
+                        if piece is not None and piece.col != self.col \
+                           and piece.attacks(board, sloc, dloc):
+                            raise IllegalMove, ("invalid king move: castle requires square %s not attacked" % dloc)
+
+            fhunks.append(checkUnattacked)
+            fhunks.append(fput)
+            rook_src = src + KingPiece.oldRookAffLoc[flank]
+            rook_dst = src + KingPiece.newRookAffLoc[flank]
+
+            def rook_move(board):
+                p = board[rook_src]
+                if p.__class__ is RookPiece:
+                    rook = p
+                    leave = (rook, None)
+                elif p.__class__ is HybridPiece:
+                    if p.p1.__class__ is RookPiece:
+                        rook = p.p1
+                        leave = (p, p.p2)
+                    elif p.p2.__class__ is RookPiece:
+                        rook = p.p2
+                        leave = (p, p.p1)
+                    else:
+                        raise IllegalMove, ("invalid king move: castle requires a Rook on %s" % rook_src)
+                else:
+                    raise IllegalMove, ("invalid king move: castle requires a Rook on %s" % rook_src)
+                return [(rook_src, leave), (rook_dst, (None, rook))]
+
+            fhunks.append(rook_move)
+            return fiter(*fhunks)
+            
+        return fraise(IllegalMove, "invalid king move")        
+
+    def attacks(self, board, src, dst):
+        x, y = (dst-src)()
+        return x is 0 and y in (-1, 1) or x in (-1, 1) and y in (-1, 0, 1)
+        
 
 class PawnPiece(AtomicPiece):
     symbol = 'P'
@@ -298,7 +412,7 @@ class PawnPiece(AtomicPiece):
     doubleMove = {white: AffLoc(0, 2), black: AffLoc(0, -2)}
     captureMoves = {white: (AffLoc(-1, 1), AffLoc(1, 1)), black: (AffLoc(1, -1), AffLoc(-1, -1))}
 
-    def move(self, src, dst, options={}):
+    def move0(self, src, dst, options={}):
         x, y = (dst-src)()
         # assert 1 <= src.y <= 6
         

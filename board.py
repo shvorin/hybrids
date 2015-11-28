@@ -51,9 +51,8 @@ class Board:
         # for obsolete/non-valid ply: (loc, ply) is assumed to equal (None, _)
         self.enpassant = (None, 0)
 
-        # whether casting is possible (for 'hybrids' variant it is never possible)
-        self.castle_white = None
-        self.castle_black = None
+        self.castle = {white: {queenside: True, kingside: True},
+                       black: {queenside: True, kingside: True}}
 
         # history is a stack of patches
         self.gamehist = None
@@ -134,11 +133,11 @@ class Board:
         self.gamehist = GameHist(Variant=self.variant)
         self.gamehist.setup()
         self.enpassant = (None, 0)
+        self.castle = {white: {queenside: True, kingside: True},
+                       black: {queenside: True, kingside: True}}
 
         if variant == 'ortodox':
-            raise "ortodox pieces should be set..."
-            
-            self.castle_white = self.castle_black = True
+            raise Exception, "ortodox pieces should be set..."
         elif variant == 'hybrids':
             self.clearPieceMap()
             
@@ -149,9 +148,6 @@ class Board:
                     p = cls(col)
                     self[loc] = p
                     self.pieceMap[p].append(loc)
-
-            # in hybrids no castling allowed at all
-            self.castle_white = self.castle_black = False
             
         for x in range(8):
             for col, y in (white, 1), (black, 6):
@@ -168,7 +164,7 @@ class Board:
         if loc.__class__ == Loc:
             # perform a sanity check
             if(old != self[loc]):
-                raise ("hunk (%s: %s -> %s) failed" % (loc, old, new))
+                raise Exception, ("hunk (%s: %s -> %s) failed" % (loc, old, new))
             self[loc] = new
             if old:
                 self.pieceMap[old].remove(loc)
@@ -178,10 +174,12 @@ class Board:
         elif loc == 'enpassant':
             # sanity check
             if old != self.enpassant:
-                raise ("special hunk (%s -> %s) failed" % (old, new))
+                raise Exception, ("special hunk enpassant (%s -> %s) failed" % (old, new))
             self.enpassant = new
+        elif loc == 'castle':
+            new(self.castle)
         else:
-            raise 'applyHunk: unknown special case'
+            raise Exception, ('applyHunk: unknown special case %s %s' % (loc.__class__, loc))
 
     def applyPatch(self, patch, rev=False):
         """Applies a patch (a list of hunks) to the current position.
@@ -245,7 +243,7 @@ with history.
         assert isinstance(wsrc, WLoc) and isinstance(wdst, WLoc)
 
         if actor is None:
-            raise "not implemented: moving piece should not be wild"
+            raise Exception, "not implemented: moving piece should not be wild"
 
         assert actor.col == self.turn
 
@@ -290,7 +288,7 @@ with history.
             [dst] = self.pieceMap[myKing]
         except Exception, e:
             if e.__class__ == ValueError or e.__class__ == KeyError:
-                raise "no %s king found at the board" % myCol
+                raise Exception, ("no %s king found at the board" % myCol)
             else:
                 raise e
 

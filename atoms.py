@@ -4,7 +4,7 @@ for pieces colors and locations.  There also defined a useful class 'Immutable'.
 """
 
 __id__ = "$Id$"
-__all__ = ["Immutable", "Color", "white", "black", "Loc", "AffLoc", "WLoc", "invalid_init"]
+__all__ = ["Immutable", "Color", "white", "black", "Flank", "queenside", "kingside", "Loc", "AffLoc", "WLoc", "invalid_init"]
 
 import types
 
@@ -87,6 +87,29 @@ white, black = Color.createValues()
 del Color.createValues # no more Color values ;)
 # FIXME: it is still allowed to modify __slots__ fields by calling init_instance
 
+class Flank(Immutable):
+    __slots__ = ('value', )
+    __queenside = 0
+    __kingside = 1
+
+    def createValues():
+        """this static method is to be deleted just after instances created"""
+        v1 = object.__new__(Flank)
+        v1.init_instance(value=Flank.__queenside)
+        v2 = object.__new__(Flank)
+        v2.init_instance(value=Flank.__kingside)
+        return (v1, v2)
+
+    createValues = staticmethod(createValues)
+
+    # FIXME: is it OK to use __repr__(), not just __str__() ?
+    def __repr__(self):
+        if   self.value == Flank.__queenside: return 'queenside'
+        elif self.value == Flank.__kingside: return 'kingside'
+
+# NB: use classical "queenside", not "guardside"
+queenside, kingside = Flank.createValues()
+del Flank.createValues # no more Flank values ;)
 
 class Loc(Immutable):
     __slots__ = ('x', 'y')
