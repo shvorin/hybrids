@@ -9,6 +9,7 @@ from FileDialog import *
 from board import *
 from pieces import *
 import os.path
+import errno
 
 # Try using cPickle if available.
 # try:
@@ -112,6 +113,10 @@ class GBoard:
 
         self.c.pack(side=LEFT,expand=YES,fill=BOTH)
         self.drawPosition()
+
+        import os
+        io = os.open('fifo', os.O_RDONLY | os.O_NONBLOCK)
+        self.fifo = os.fdopen(io, 'r')
 
     def mouseDown(self, event):
         event_coords = event.x, event.y
@@ -304,6 +309,29 @@ class GBoard:
         
         self.save(fname)
 
+    def poll(self):
+        print "poll"
+        try:
+            line = self.fifo.readline()
+        except OSError, err:
+            if err.errno == errno.EAGAIN or err.errno == errno.EWOULDBLOCK:
+                line = None
+            else:
+                raise
+        self.command(line)
+        self.root.after(1000, self.poll)
+
+    def command(self, line):
+        if not line:
+            return
+        line = line[:-1] # drop final '\n'
+        if line == 'backward':
+            self.undo()
+            return
+        if line == 'forward':
+            self.redo()
+            return
+        raise ("unknown command %s" % line)
 
 class PromotionDialog:
     title = "Promotion Dialog"
@@ -364,6 +392,7 @@ class PromotionDialog:
 if __name__ == '__main__':
     try:
         g = GBoard()
+        g.poll()
         g.root.mainloop()
     except Exception, e:
         print ("an exception caught:\n%s" % e)

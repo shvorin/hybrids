@@ -6,7 +6,7 @@ from simpleparse.dispatchprocessor import *
 
 move = r'''# note use of raw string when embedding in python code...
 <space>        := [ \t\n\r]+
-<sspace>        := [ \t]+
+<sspace>       := [ \t]+
 
 File           := [a-h]
 Rank           := [1-8]
@@ -49,10 +49,18 @@ Move_FAN       := (Move_FAN_NotHybridable/Move_FAN_Hybridable/Move_FAN_Pawn), Ch
 Move_SAN                 := (Move_SAN_NotHybridable/Move_SAN_Hybridable/Move_SAN_Pawn), CheckSign?
 
 # Allow any
-Move           := Move_FAN/Move_SAN
+#Move           := Move_FAN/Move_SAN
 '''
 
-parser = Parser(move)
+command = move + r'''
+Move     := "move"/"m", sspace, Move_FAN/Move_SAN
+Forward  := "forward"/"f"
+Backward := "backward"/"b"
+Command  := Move/Forward/Backward
+'''
+
+
+parser = Parser(command, "Command")
 
 tags = r'''
 <space>        := [ \t\n\r]+
