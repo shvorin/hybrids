@@ -114,9 +114,9 @@ class GBoard:
         self.c.pack(side=LEFT,expand=YES,fill=BOTH)
         self.drawPosition()
 
-        import os
-        io = os.open('fifo', os.O_RDONLY | os.O_NONBLOCK)
-        self.fifo = os.fdopen(io, 'r')
+        # import os
+        # io = os.open('fifo', os.O_RDONLY | os.O_NONBLOCK)
+        # self.fifo = os.fdopen(io, 'r')
 
     def mouseDown(self, event):
         event_coords = event.x, event.y
@@ -392,7 +392,7 @@ class PromotionDialog:
 if __name__ == '__main__':
     try:
         g = GBoard()
-        g.poll()
+        # g.poll()
         g.root.mainloop()
     except Exception, e:
         print ("an exception caught:\n%s" % e)
