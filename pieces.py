@@ -139,7 +139,7 @@ class Piece(Immutable):
                black: {queenside: Loc('a8'), kingside: Loc('h8')}}
 
     def move(self, src, dst, options={}):
-        fhunks = [self.move0(src, dst, **options)]
+        fhunks = [self.move0(src, dst, options)]
 
         for flank in (queenside, kingside):
             if src == Piece.corners[self.col][flank]:
